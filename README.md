@@ -12,13 +12,3 @@ Unity 6 기반 게임 제작 텀 프로젝트. 게임 제목은 미정이며, 2D
 2. Unity Hub에서 **6000.5.1f1** 버전으로 프로젝트 폴더를 엽니다.
 3. `Assets/Scenes/SampleScene.unity` 파일을 열어 작업합니다.
 
-## 문서
-
-- [게임 기획서 (GDD v0.1)](docs/GDD.md)
-- [기여 안내 및 과제 준수사항](CONTRIBUTING.md)
-
-## 검사
-
-`main`에 푸시하거나 PR을 열면 GitHub Actions가 프로젝트의 기본 구조를 검사합니다.
-
-로컬에서는 `python scripts/validate_project.py`로 같은 검사를 실행할 수 있습니다. Unity 컴파일이나 실행 테스트는 포함되지 않습니다.
