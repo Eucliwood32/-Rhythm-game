@@ -10,6 +10,98 @@ public partial class ChartEditorWindow
 {
     // ───────────────────────── 자동 생성 ─────────────────────────
 
+    // ───────────────────────── BPM 자동 감지 ─────────────────────────
+
+    void RequestDetectBpm()
+    {
+        if (project == null || project.clip == null || analysisTask != null) return;
+        if (analysis != null && analysisClip == project.clip)
+        {
+            ShowDetected();
+            return;
+        }
+        detectWhenReady = true;
+        StartAnalysis();
+    }
+
+    void ShowDetected()
+    {
+        detectedFactor = 1;
+        detectedTempo = null;
+        if (analysis == null || analysis.tempo == null || analysis.tempo.Count == 0)
+        {
+            message = "박자를 찾지 못했습니다. 박이 뚜렷하지 않은 곡이면 탭 템포(T)로 맞추세요.";
+            return;
+        }
+        detectedTempo = new List<TempoPoint>();
+        foreach (TempoPoint p in analysis.tempo) detectedTempo.Add(new TempoPoint { time = p.time, bpm = p.bpm });
+        message = "BPM 감지: " + DetectedText() + " — 'BPM · 격자'에서 확인하고 적용하세요.";
+    }
+
+    string DetectedText()
+    {
+        if (detectedTempo == null || detectedTempo.Count == 0) return "";
+        string s = (detectedTempo[0].bpm * detectedFactor).ToString("0.##") + " BPM, 첫 박 " + ChartEditing.FormatTime(detectedTempo[0].time);
+        if (detectedTempo.Count > 1) s += " (BPM 바뀜 " + (detectedTempo.Count - 1) + "번)";
+        return s;
+    }
+
+    void ApplyDetected()
+    {
+        if (detectedTempo == null || detectedTempo.Count == 0) return;
+        Undo.RecordObject(project, "BPM 자동 감지 적용");
+        project.tempo.Clear();
+        foreach (TempoPoint p in detectedTempo)
+            project.tempo.Add(new TempoPoint { time = p.time, bpm = Math.Round(p.bpm * detectedFactor * 100) / 100 });
+        EditorUtility.SetDirty(project);
+        message = "BPM 적용: " + DetectedText() + ". 메트로놈을 켜고 맞는지 들어 보세요.";
+        detectedTempo = null;
+    }
+
+    // ───────────────────────── 외부 분석 ─────────────────────────
+
+    void LoadExternalAnalysis()
+    {
+        if (project == null || project.clip == null) return;
+        string path = EditorUtility.OpenFilePanel("외부 분석 불러오기 (chart_analyze.py가 만든 .json)", Application.dataPath, "json");
+        if (string.IsNullOrEmpty(path)) return;
+        ExternalAnalysisFile file;
+        try
+        {
+            file = JsonUtility.FromJson<ExternalAnalysisFile>(File.ReadAllText(path));
+        }
+        catch (Exception e)
+        {
+            message = "외부 분석 파일을 읽지 못했습니다: " + e.Message;
+            return;
+        }
+        if (file == null || file.onsets == null || file.onsets.Length == 0)
+        {
+            message = "외부 분석 파일에 타격 정보(onsets)가 없습니다.";
+            return;
+        }
+        if (file.duration > 0 && Math.Abs(file.duration - project.clip.length) > 2)
+        {
+            if (!EditorUtility.DisplayDialog("외부 분석", "분석 파일의 곡 길이(" + ChartEditing.FormatTime(file.duration) + ")가 지금 곡(" +
+                    ChartEditing.FormatTime(project.clip.length) + ")과 다릅니다. 다른 곡의 분석일 수 있습니다. 그래도 쓸까요?", "쓰기", "취소"))
+                return;
+        }
+        analysisCancel = true;
+        analysisTask = null;
+        analysis = ChartAutoGenerator.FromExternal(file);
+        analysisClip = project.clip;
+        message = analysis.source + " 불러옴: 타격 " + analysis.onsets.Count + "개, 박 " + analysis.beats.Length + "개, 구간 " + analysis.sections.Count + "개";
+    }
+
+    void UseInternalAnalysis()
+    {
+        analysis = null;
+        analysisClip = null;
+        message = "내부 분석으로 되돌렸습니다. 다음 자동 생성 때 곡을 다시 분석합니다.";
+    }
+
+    // ───────────────────────── 자동 생성 ─────────────────────────
+
     void RequestGenerate()
     {
         if (project == null || project.clip == null || analysisTask != null) return;
@@ -30,6 +122,7 @@ public partial class ChartEditorWindow
         {
             message = "곡의 Load Type을 Decompress On Load로 바꿔야 분석할 수 있습니다.";
             generateWhenReady = false;
+            detectWhenReady = false;
             return;
         }
         if (clip.loadState != AudioDataLoadState.Loaded) clip.LoadAudioData();
@@ -37,6 +130,7 @@ public partial class ChartEditorWindow
         {
             message = "곡 데이터를 아직 불러오는 중입니다. 잠시 뒤에 다시 누르세요.";
             generateWhenReady = false;
+            detectWhenReady = false;
             return;
         }
 
@@ -46,6 +140,7 @@ public partial class ChartEditorWindow
         {
             message = "곡 샘플을 읽지 못했습니다.";
             generateWhenReady = false;
+            detectWhenReady = false;
             return;
         }
 
@@ -66,17 +161,25 @@ public partial class ChartEditorWindow
         {
             message = "분석에 실패했습니다: " + (task.Exception != null ? task.Exception.GetBaseException().Message : "취소");
             generateWhenReady = false;
+            detectWhenReady = false;
             return;
         }
         if (task.Result == null)
         {
             message = "분석을 취소했습니다.";
             generateWhenReady = false;
+            detectWhenReady = false;
             return;
         }
 
         analysis = task.Result;
         analysisClip = analysisTaskClip;
+        message = "곡 분석 완료: " + analysis.bpm.ToString("0.##") + " BPM, 구간 " + analysis.sections.Count + "개";
+        if (detectWhenReady && project != null && project.clip == analysisClip)
+        {
+            detectWhenReady = false;
+            ShowDetected();
+        }
         if (generateWhenReady && project != null && project.clip == analysisClip)
         {
             generateWhenReady = false;
@@ -106,6 +209,11 @@ public partial class ChartEditorWindow
         var settings = new AutoGenSettings
         {
             minGap = DifficultyGaps[Mathf.Clamp(autoDifficulty, 0, DifficultyGaps.Length - 1)],
+            maxNps = DifficultyNps[Mathf.Clamp(autoDifficulty, 0, DifficultyNps.Length - 1)],
+            preferBeats = autoPreferBeats,
+            sectionDensity = autoSectionDensity,
+            makeChords = autoChords,
+            maxJack = autoMaxJack,
             sensitivity = autoSensitivity,
             laneMode = autoLane,
             makeLongs = autoLongs,
@@ -132,13 +240,15 @@ public partial class ChartEditorWindow
         selection.Clear();
         selection.AddRange(made);
 
-        int longs = 0, bars = 0;
+        int longs = 0, bars = 0, chords = 0;
+        var times = new HashSet<double>();
         foreach (NoteData n in made)
         {
             if (n.type == NoteType.Long) longs++;
             else if (n.type == NoteType.Barrage) bars++;
+            if (!times.Add(n.time)) chords++;
         }
-        message = "자동 생성 " + made.Count + "개 (롱노트 " + longs + ", 연타 " + bars + ")";
+        message = "자동 생성 " + made.Count + "개 (롱노트 " + longs + ", 연타 " + bars + ", 동시치기 " + chords + ") · " + analysis.source;
         Repaint();
     }
 

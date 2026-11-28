@@ -39,6 +39,23 @@ public class GameHud : MonoBehaviour
     [Tooltip("UI 글꼴. 비워두면 OS의 한글 글꼴(맑은 고딕 등)을 쓴다.")]
     [SerializeField] Font font;
 
+    [Tooltip("켜면 보스전에 화면 위쪽 보스 체력바(이름 + 빨간 막대)를 보여준다. 꺼도 보스 체력 계산·연출은 그대로")]
+    [SerializeField] bool showBossHealthBar = false;
+
+    [Header("대화 초상화 (1920×1080 기준 픽셀)")]
+    [Tooltip("초상화 왼쪽 아래 모서리 위치. y를 키우면 위로 올라간다 (대화 상자 윗면은 y = 350)")]
+    [SerializeField] Vector2 portraitPosition = new Vector2(150f, 330f);
+    [Tooltip("초상화 크기 (가로, 세로). 그림 비율은 유지된다")]
+    [SerializeField] Vector2 portraitSize = new Vector2(620f, 620f);
+
+    [Header("보스 등장 컷인 글자 (1920×1080 기준)")]
+    [Tooltip("글자 위치 (화면 가운데 기준). y가 음수면 아래로")]
+    [SerializeField] Vector2 cutInTextPosition = new Vector2(0f, -360f);
+    [Tooltip("글자 기울기(도)")]
+    [SerializeField] float cutInTextRotation = 6f;
+    [Tooltip("글자 크기")]
+    [SerializeField] int cutInTextSize = 140;
+
     [Tooltip("대화 글자가 나오는 속도 (초당 글자 수)")]
     [SerializeField] float typingSpeed = 40f;
 
@@ -50,7 +67,8 @@ public class GameHud : MonoBehaviour
     // ── 코드로 만든 UI 부품을 기억해 두는 칸들 (Build에서 채운다) ──
     RectTransform canvasRect;                                                            // Canvas의 사각형 (월드 → UI 좌표 변환에 필요)
     GameObject gameplay, bossGroup, titlePanel, storyPanel, resultPanel, bannerGroup;    // 화면 묶음들. SetActive로 통째로 켜고 끈다.
-    RectTransform hpFill, bossFill;                                                      // 체력바 안쪽(채워지는 부분)
+    RectTransform hpFill, bossFill, feverFill;                                           // 체력바·피버 게이지 안쪽(채워지는 부분)
+    Image feverFillImage;
     Image hpFillImage;
     Text scoreText, stageText, comboText, comboLabel, countdownText, shoutText, noticeText;
     Text bossName, titleText, subtitleText, titleHint;
@@ -60,7 +78,10 @@ public class GameHud : MonoBehaviour
     Image storyPortrait;                             // 대화 초상화 (말하는 사람 그림)
     Text resultHeading, resultRank, resultBody, resultHint;
     Text bannerText;
-    Image bannerImage;
+    Image bannerImage, bannerBack;
+    AspectRatioFitter bannerFit;     // 컷인 그림을 화면 비율과 상관없이 꽉 채우기 (넘치는 부분은 잘림)
+    RectTransform bannerTextRect;
+    float cutInSlide;                // 컷인이 오른쪽에서 밀려 들어오는 진행 (1 → 0)
     readonly Text[] popups = new Text[2];            // 레인별 판정 글자 (0 = 위, 1 = 아래)
     readonly float[] popupTimer = new float[2];      // 레인별 판정 글자 남은 시간
 
@@ -103,6 +124,7 @@ public class GameHud : MonoBehaviour
             referee.OnHealthChanged += HandleHealth;
             referee.OnScoreChanged += HandleScore;
             referee.OnComboChanged += HandleCombo;
+            referee.OnFeverChanged += HandleFever;
         }
     }
 
@@ -118,7 +140,9 @@ public class GameHud : MonoBehaviour
             referee.OnHealthChanged -= HandleHealth;
             referee.OnScoreChanged -= HandleScore;
             referee.OnComboChanged -= HandleCombo;
+            referee.OnFeverChanged -= HandleFever;
         }
+        ScreenFx.SetFever(false);
     }
 
     // ───────────────────────── GameFlow가 부르는 함수 ─────────────────────────
@@ -150,6 +174,9 @@ public class GameHud : MonoBehaviour
     // portrait: 말하는 사람 초상화. null이면 숨긴다. (= null: 생략 가능한 매개변수)
     public void ShowStory(string speaker, string line, string hint, Sprite portrait = null)
     {
+        // Inspector에서 바꾼 위치·크기를 바로 반영 (Play 중에 고쳐도 다음 대사부터 적용)
+        storyPortrait.rectTransform.anchoredPosition = portraitPosition;
+        storyPortrait.rectTransform.sizeDelta = portraitSize;
         storyPortrait.sprite = portrait;
         storyPortrait.gameObject.SetActive(portrait != null);
         storyPanel.SetActive(true);
@@ -197,14 +224,34 @@ public class GameHud : MonoBehaviour
         bannerText.color = color;
         bannerImage.sprite = image;
         bannerImage.gameObject.SetActive(image != null);   // 그림이 없으면 이미지 칸을 숨긴다(흰 사각형이 보이지 않게).
+        bannerBack.gameObject.SetActive(image != null);    // 컷인 뒤 검은 판 (그림 가장자리 틈 가리기)
         bannerTimer = duration;
-        bannerGroup.transform.localScale = Vector3.one * 1.6f;   // 1.6배 크기에서 시작해 Update에서 1배로 줄어든다(쾅 하고 박히는 느낌).
+        if (image != null)
+        {
+            // 컷인: 그림 비율 그대로 화면을 꽉 채운다 (EnvelopeParent = CSS의 cover). 창 비율이 달라도 틈이 안 생긴다.
+            bannerFit.aspectRatio = image.rect.width / Mathf.Max(1f, image.rect.height);
+            cutInSlide = 1f;                                   // 오른쪽에서 휙 밀려 들어옴
+            bannerGroup.transform.localScale = Vector3.one;    // 컷인은 크기 연출 없이 밀어 넣기만
+            // 글자는 그림 아래쪽에 비스듬히 (가운데에 두면 얼굴을 가린다)
+            bannerTextRect.anchoredPosition = cutInTextPosition;
+            bannerTextRect.localRotation = Quaternion.Euler(0f, 0f, cutInTextRotation);
+            bannerText.fontSize = cutInTextSize;
+        }
+        else
+        {
+            cutInSlide = 0f;
+            bannerImage.rectTransform.anchoredPosition = Vector2.zero;
+            bannerTextRect.anchoredPosition = Vector2.zero;
+            bannerTextRect.localRotation = Quaternion.identity;
+            bannerText.fontSize = 140;   // 일반 배너(STAGE CLEAR 등)는 기본 크기
+            bannerGroup.transform.localScale = Vector3.one * 1.6f;   // 1.6배 크기에서 시작해 Update에서 1배로 줄어든다(쾅 하고 박히는 느낌).
+        }
     }
 
     // 보스 체력바를 켜고 끈다. 켤 때 이름을 쓰고 체력을 가득 채운다.
     public void SetBoss(bool visible, string name)
     {
-        bossGroup.SetActive(visible);
+        bossGroup.SetActive(visible && showBossHealthBar);   // 체력바 표시를 끄면 보스전이어도 숨긴다
         bossName.text = name;
         SetBossHealth(1f);
     }
@@ -276,6 +323,13 @@ public class GameHud : MonoBehaviour
         hpFillImage.color = ratio > 0.3f ? new Color(0.35f, 0.9f, 0.45f) : new Color(1f, 0.35f, 0.3f);   // 30% 이하면 빨강(위험)
         if (ratio < before - 0.001f) hpFlash = 1f;   // 줄었으면 번쩍. 0.001은 float 오차 여유.
         else if (ratio > before + 0.001f) healFlash = 1f;   // 늘었으면(Perfect 회복) 초록으로 번쩍
+    }
+
+    // 피버 시작·끝: 화면 연출 (무지개 테두리·반짝이) + 큰 글자
+    void HandleFever(bool on)
+    {
+        ScreenFx.SetFever(on);
+        if (on) ScreenFx.Banner("FEVER!!", new Color(1f, 0.85f, 0.2f), 150f, 1.2f);
     }
 
     void HandleScore(int score)
@@ -391,6 +445,15 @@ public class GameHud : MonoBehaviour
             if (impactTimer[i] <= 0f) impacts[i].gameObject.SetActive(false);
         }
 
+        // 피버 게이지: 평소엔 주황, 80% 넘으면 노랑, 피버 중엔 무지개색으로 줄어든다.
+        if (referee != null && feverFill != null)
+        {
+            float f = referee.FeverGauge;
+            feverFill.anchorMax = new Vector2(f, 1f);
+            feverFillImage.color = referee.IsFever ? Color.HSVToRGB(Mathf.Repeat(Time.unscaledTime * 0.8f, 1f), 0.6f, 1f)
+                                                   : (f >= 0.8f ? new Color(1f, 0.9f, 0.3f) : new Color(1f, 0.65f, 0.2f));
+        }
+
         comboPop = Mathf.Max(0f, comboPop - dt * 6f);
         comboText.transform.localScale = Vector3.one * (1f + comboPop * 0.25f);
 
@@ -418,6 +481,13 @@ public class GameHud : MonoBehaviour
         if (bannerTimer > 0f)
         {
             bannerTimer -= dt;
+            if (cutInSlide > 0f)
+            {
+                // 컷인 밀어 넣기: 0.18초 만에 오른쪽 밖(+1920)에서 제자리로. 끝에 살짝 감속.
+                cutInSlide = Mathf.Max(0f, cutInSlide - dt / 0.18f);
+                float e = cutInSlide * cutInSlide;
+                bannerImage.rectTransform.anchoredPosition = new Vector2(1920f * e, 0f);
+            }
             bannerGroup.transform.localScale = Vector3.Lerp(bannerGroup.transform.localScale, Vector3.one, 1f - Mathf.Exp(-dt * 14f));
             if (bannerTimer <= 0f) bannerGroup.SetActive(false);
         }
@@ -483,6 +553,13 @@ public class GameHud : MonoBehaviour
         // anchorMin (0,0) ~ anchorMax (1,1) = 부모 전체로 늘림. offsetMin/Max = 왼쪽 아래 / 오른쪽 위 여백
         hpFill.anchorMin = Vector2.zero; hpFill.anchorMax = Vector2.one; hpFill.offsetMin = new Vector2(3, 3); hpFill.offsetMax = new Vector2(-3, -3);
 
+        // HP바 바로 아래: 피버 게이지 (가득 차면 피버 타임)
+        Label(g, "FeverLabel", "FEVER", 18, new Color(1f, 0.85f, 0.4f), TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -84), new Vector2(80, 20));
+        var feverBg = Box(g, "FeverBg", new Color(0, 0, 0, 0.6f), new Vector2(0, 1), new Vector2(0, 1), new Vector2(100, -84), new Vector2(520, 16));
+        feverFillImage = Box(feverBg.transform, "FeverFill", new Color(1f, 0.65f, 0.2f), Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+        feverFill = feverFillImage.rectTransform;
+        feverFill.anchorMin = Vector2.zero; feverFill.anchorMax = new Vector2(0f, 1f); feverFill.offsetMin = new Vector2(2, 2); feverFill.offsetMax = new Vector2(-2, -2);
+
         // 오른쪽 위: 점수 / 위쪽 가운데: 스테이지 이름
         scoreText = Label(g, "Score", "SCORE  0000000", 40, Color.white, TextAnchor.MiddleRight, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-40, -36), new Vector2(700, 50));
         stageText = Label(g, "Stage", "", 28, new Color(1, 1, 1, 0.8f), TextAnchor.MiddleCenter, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(900, 40));
@@ -520,10 +597,16 @@ public class GameHud : MonoBehaviour
         // 큰 배너 (STAGE CLEAR, GAME OVER, 보스 등장)
         // 그림(컷인)은 화면 전체로 늘리고, 비율은 유지한다(preserveAspect). 글자는 그 위 가운데.
         bannerGroup = Group("Banner", c);
-        bannerImage = Box(bannerGroup.transform, "BannerImage", Color.white, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-        Stretch(bannerImage.rectTransform);
-        bannerImage.preserveAspect = true;
+        bannerBack = Box(bannerGroup.transform, "BannerBack", Color.black, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+        Stretch(bannerBack.rectTransform);
+        bannerBack.gameObject.SetActive(false);
+        // 컷인 그림: 화면 가운데 기준, AspectRatioFitter가 크기를 화면을 꽉 덮도록 정한다.
+        bannerImage = Box(bannerGroup.transform, "BannerImage", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1920, 1080));
+        bannerFit = bannerImage.gameObject.AddComponent<AspectRatioFitter>();
+        bannerFit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+        bannerFit.aspectRatio = 16f / 9f;
         bannerText = Label(bannerGroup.transform, "BannerText", "", 140, Color.white, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(1900, 300));
+        bannerTextRect = bannerText.rectTransform;
         bannerText.fontStyle = FontStyle.Bold;
         bannerGroup.SetActive(false);
 
@@ -552,7 +635,7 @@ public class GameHud : MonoBehaviour
         Stretch(Box(storyPanel.transform, "Dim", new Color(0, 0, 0, 0.45f), Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero).rectTransform);
         // 초상화: 대화 상자보다 먼저 만들어서 상자 뒤에 그려진다 → 아랫부분이 상자에 가려져 미연시처럼 상자 위로 상반신이 보인다.
         // 왼쪽 아래 모서리 기준(앵커·피벗 0,0), 크기 620×620. preserveAspect: 그림 비율 유지
-        storyPortrait = Box(storyPanel.transform, "Portrait", Color.white, new Vector2(0, 0), new Vector2(0, 0), new Vector2(150, 220), new Vector2(620, 620));
+        storyPortrait = Box(storyPanel.transform, "Portrait", Color.white, new Vector2(0, 0), new Vector2(0, 0), portraitPosition, portraitSize);
         storyPortrait.preserveAspect = true;
         storyPortrait.gameObject.SetActive(false);
         var storyBox = Box(storyPanel.transform, "Box", new Color(0.08f, 0.08f, 0.14f, 0.95f), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 50), new Vector2(1700, 300));

@@ -22,6 +22,10 @@
 //   3) Enemy Sprites 칸에 그림이 있으면 그중 무작위 한 장
 //   4) 다 없으면 코드로 그린 임시 학생 도형
 //
+// 화면 박치기 (대난투 스크린 KO): 일반 스테이지에서 Perfect로 날린 적 중 가끔(Screen Ko Chance),
+//   적이 화면 안쪽으로 날아갔다가 카메라 쪽으로 커다랗게 날아와 화면 한가운데에 쾅 부딪히고,
+//   화면에 금이 간 채 미끄러져 내려간다. 2D에서 크기(가까워짐)와 위치만으로 3D처럼 보이게 하는 연출.
+//
 // 타격 섬광: 날리는 순간 맞은 자리에 하얀 원이 0.08초 번쩍인다(보스에게 맞을 때도).
 //   캐릭터 그림 자체를 하얗게 만들려면 전용 셰이더가 필요해서, 대신 맞은 자리를 번쩍이게 했다.
 //
@@ -39,6 +43,9 @@ public class StudentLauncher : MonoBehaviour
     [SerializeField] Judge judge;
     [SerializeField] NoteDisplay noteDisplay;
     [SerializeField] BossDisplay boss;              // 없으면 보스 던지기 없이 항상 날리기만 한다.
+    [SerializeField] Referee referee;               // 피버 중인지 보려고. 없어도 된다.
+    [Tooltip("피버 타임 중 날아가는 힘 배율")]
+    [SerializeField] float feverLaunch = 1.35f;
 
     [Tooltip("날아갈 적 프리팹. 비워두면 아래 Enemy Sprites, 그것도 비면 임시 도형")]
     [SerializeField] GameObject studentPrefab;
@@ -67,6 +74,14 @@ public class StudentLauncher : MonoBehaviour
     [Tooltip("학생끼리 부딪히게 할지")]
     [SerializeField] bool studentsCollide = false; // 켜면 Collider를 붙여서 서로 튕긴다. 많아지면 무거워서 기본은 끔.
 
+    [Header("화면 박치기 (대난투 스크린 KO)")]
+    [Tooltip("Perfect로 날린 적이 화면에 부딪힐 확률 (0 = 안 함, 0.1 = 10%)")]
+    [Range(0f, 1f)] [SerializeField] float screenKoChance = 0.1f;
+    [Tooltip("한 번 나온 뒤 다음까지 최소 몇 초 (너무 자주 나오면 노트를 가린다)")]
+    [SerializeField] float screenKoCooldown = 6f;
+    [Tooltip("화면에 부딪힐 때 크기 배율 (적 원래 크기 기준)")]
+    [SerializeField] float screenKoScale = 4.5f;
+
     [Header("보스전")]
     [Tooltip("던진 적이 보스에게 도착하기까지 걸리는 시간(초). 짧을수록 빠르고 낮게 날아간다.")]
     [SerializeField] float throwTime = 0.45f;
@@ -85,6 +100,7 @@ public class StudentLauncher : MonoBehaviour
 
     // 살아 있는 적들. Queue(선입선출)라서 개수 초과 때 오래된 것부터 꺼내 지우기 쉽다.
     readonly Queue<GameObject> alive = new Queue<GameObject>();
+    float nextScreenKo;   // 다음 화면 박치기가 가능한 시각
 
     void Awake()
     {
@@ -92,6 +108,7 @@ public class StudentLauncher : MonoBehaviour
         if (judge == null) judge = FindAnyObjectByType<Judge>();
         if (noteDisplay == null) noteDisplay = FindAnyObjectByType<NoteDisplay>();
         if (boss == null) boss = FindAnyObjectByType<BossDisplay>();
+        if (referee == null) referee = FindAnyObjectByType<Referee>();
     }
 
     void OnEnable()
@@ -119,6 +136,7 @@ public class StudentLauncher : MonoBehaviour
     void HandleNoteJudged(NoteData note, Judgment result, Lane lane, double errorMs, JudgeKind kind)
     {
         if (result == Judgment.Miss) return;   // 놓치면 아무도 안 날아간다.
+        if (noteDisplay.IsBossSpecial(note)) return;   // 보스 패턴 노트(돌진·기공파): 날릴 잡몹이 없다 (보스가 직접 맞음)
 
         switch (kind)
         {
@@ -140,6 +158,7 @@ public class StudentLauncher : MonoBehaviour
     void HandleBarrageHit(NoteData note, Lane lane, int hits, int need)
     {
         if (!launchOnBarrageHit) return;   // 기본은 끔: 연타 중에는 큰 적이 판정선에서 움찔하기만 한다.
+        if (noteDisplay.IsBossSpecial(note)) return;
         Launch(lane, false, 0.55f, noteDisplay.RandomHitSprite());   // 무작위 캐릭터의 작은 적
     }
 
@@ -163,6 +182,14 @@ public class StudentLauncher : MonoBehaviour
         {
             ThrowAtBoss(go, rb, perfect);   // 보스전: 보스에게 던진다.
         }
+        else if (perfect && scale <= 1.01f && Time.time >= nextScreenKo && Random.value < screenKoChance)
+        {
+            // 화면 박치기: 물리 대신 직접 움직인다 (simulated = false → 물리 엔진이 이 물체를 무시)
+            nextScreenKo = Time.time + screenKoCooldown;
+            rb.simulated = false;
+            StartCoroutine(ScreenKO(go));
+            return;   // 아래 회전·자동 삭제 예약은 안 함 (코루틴이 끝나면 지운다)
+        }
         else
         {
             // 일반: 레인에 따라 방향을 정해 화면 밖으로 날린다.
@@ -171,7 +198,8 @@ public class StudentLauncher : MonoBehaviour
                 ? new Vector2(Random.Range(0.15f, 0.45f), 1f)
                 : new Vector2(1f, Random.Range(0.25f, 0.6f));
             dir.Normalize();   // 길이를 1로. 방향만 남기고 세기는 force로 정한다.
-            float force = (lane == Lane.Upper ? uppercutForce : kickForce) * (perfect ? perfectBonus : 1f) * Random.Range(0.9f, 1.1f);
+            float force = (lane == Lane.Upper ? uppercutForce : kickForce) * (perfect ? perfectBonus : 1f) * Random.Range(0.9f, 1.1f)
+                * (referee != null && referee.IsFever ? feverLaunch : 1f);   // 피버 중에는 더 멀리
             // Impulse: 순간적으로 속도를 바꾼다. 속도 변화 = 충격량 ÷ 질량 → 질량을 곱해 넣었으니 속도 변화 = dir × force.
             rb.AddForce(dir * force * rb.mass, ForceMode2D.Impulse);
         }
@@ -219,6 +247,70 @@ public class StudentLauncher : MonoBehaviour
         // 튕겨 나가기: 속도를 직접 바꾼다. 왼쪽(-x)으로 3~6, 위로 4~8.
         // linearVelocity는 Unity 6에서 쓰는 이름이다(예전 버전의 velocity).
         rb.linearVelocity = new Vector2(-Random.Range(3f, 6f), Random.Range(4f, 8f));
+    }
+
+    // 화면 박치기: ① 화면 안쪽으로 작아지며 날아감 → ② 카메라 쪽으로 커지며 화면 한가운데로 → ③ 쾅! 금 → ④ 미끄러져 내려감
+    IEnumerator ScreenKO(GameObject go)
+    {
+        Transform tr = go.transform;
+        Vector3 start = tr.position;
+        Vector3 baseScale = tr.localScale;
+        foreach (var r in go.GetComponentsInChildren<SpriteRenderer>()) r.sortingOrder = 60;   // 노트·레인보다 위
+        Camera cam = Camera.main;
+
+        // ① 멀어짐: 오른쪽 위로 날아가며 작아지고 빙글빙글
+        Vector3 far = start + new Vector3(3f, 3.5f, 0f);
+        for (float t = 0f; t < 0.3f; t += Time.deltaTime)
+        {
+            if (tr == null) yield break;
+            float k = t / 0.3f;
+            tr.position = Vector3.Lerp(start, far, 1f - (1f - k) * (1f - k));
+            tr.localScale = baseScale * Mathf.Lerp(1f, 0.45f, k);
+            tr.rotation = Quaternion.Euler(0f, 0f, -k * 540f);
+            yield return null;
+        }
+
+        GameSfx.Play(GameSfx.Sound.Whoosh);
+        // ② 다가옴: 화면 한가운데로 오면서 급격히 커짐 (k³: 처음엔 천천히, 마지막에 확 → 카메라에 꽂히는 느낌)
+        Vector3 center = cam != null ? new Vector3(cam.transform.position.x, cam.transform.position.y, 0f) : Vector3.zero;
+        for (float t = 0f; t < 0.28f; t += Time.deltaTime)
+        {
+            if (tr == null) yield break;
+            float k = t / 0.28f;
+            float k3 = k * k * k;
+            tr.position = Vector3.Lerp(far, center, k);
+            tr.localScale = baseScale * Mathf.Lerp(0.45f, screenKoScale, k3);
+            tr.rotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-540f, -720f, k));   // 마지막엔 똑바로(-720 = 두 바퀴)
+            yield return null;
+        }
+        if (tr == null) yield break;
+
+        // ③ 쾅: 납작하게 눌리고 화면에 금, 섬광, 흔들림
+        tr.position = center;
+        tr.rotation = Quaternion.identity;
+        tr.localScale = new Vector3(baseScale.x * screenKoScale * 1.12f, baseScale.y * screenKoScale * 0.9f, 1f);
+        Vector2 screenPos = cam != null ? (Vector2)cam.WorldToScreenPoint(center) : new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+        ScreenFx.Crack(screenPos, 1.4f);
+        GameSfx.Play(GameSfx.Sound.ScreenCrash);
+        ScreenFx.Flash(new Color(1f, 1f, 1f, 0.5f), 0.12f);
+        CameraShake.Shake(0.3f, 0.3f);
+        yield return new WaitForSeconds(0.08f);
+        if (tr == null) yield break;
+        tr.localScale = baseScale * screenKoScale;
+        yield return new WaitForSeconds(0.35f);   // 화면에 붙어 있는 시간
+
+        // ④ 주르륵: 점점 빨라지며 아래로 미끄러지고, 살짝 기울며 흐려짐
+        var renders = go.GetComponentsInChildren<SpriteRenderer>();
+        for (float t = 0f; t < 0.9f; t += Time.deltaTime)
+        {
+            if (tr == null) yield break;
+            float k = t / 0.9f;
+            tr.position = center + new Vector3(0f, -k * k * 9f, 0f);
+            tr.rotation = Quaternion.Euler(0f, 0f, k * 12f);
+            foreach (var r in renders) if (r != null) { Color c = r.color; c.a = 1f - Mathf.Max(0f, k - 0.6f) / 0.4f; r.color = c; }
+            yield return null;
+        }
+        if (go != null) Destroy(go);
     }
 
     // 타격 섬광: 하얀 원이 커지면서 0.08초 만에 사라진다. 아주 짧아야 "번쩍"으로 보인다.

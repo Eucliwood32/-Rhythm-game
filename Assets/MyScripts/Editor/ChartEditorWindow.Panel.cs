@@ -75,9 +75,7 @@ public partial class ChartEditorWindow
         int lane = EditorGUILayout.Popup("레인", (int)n.lane, LaneNames);
         int type = EditorGUILayout.Popup("종류", (int)n.type, TypeNames);
         double duration = n.duration;
-        int count = n.count;
         if (n.type != NoteType.Tap) duration = EditorGUILayout.DoubleField("길이 (초)", n.duration);
-        if (n.type == NoteType.Barrage) count = EditorGUILayout.IntField("필요 입력 횟수", n.count);
 
         if (!EditorGUI.EndChangeCheck()) return;
 
@@ -85,7 +83,6 @@ public partial class ChartEditorWindow
         n.time = ChartEditing.Round(Math.Max(0, time));
         n.lane = (Lane)lane;
         if (n.type != NoteType.Tap) n.duration = ChartEditing.Round(Math.Max(0, duration));
-        if (n.type == NoteType.Barrage) n.count = Math.Max(1, count);
         if ((NoteType)type != n.type) ChartEditing.ApplyType(n, (NoteType)type, DefaultHoldLength, RhythmDefaults.BarrageHitsPerSecond);
         ChartEditing.Sort(project.notes);
         EditorUtility.SetDirty(project);
@@ -136,6 +133,22 @@ public partial class ChartEditorWindow
         if (GUILayout.Button("첫 박 = 재생 위치")) SetFirstBeatHere();
         if (GUILayout.Button("여기서 BPM 변경")) AddTempoHere();
         GUILayout.EndHorizontal();
+
+        // BPM 자동 감지: 곡을 분석해서 BPM·첫 박(·BPM 바뀌는 곳)을 찾는다. 적용 전에 ×2 / ÷2로 고칠 수 있다.
+        using (new EditorGUI.DisabledScope(project.clip == null || analysisTask != null))
+        {
+            if (GUILayout.Button(analysisTask != null && detectWhenReady ? "분석 중..." : "BPM 자동 감지")) EditorApplication.delayCall += RequestDetectBpm;
+        }
+        if (detectedTempo != null)
+        {
+            EditorGUILayout.HelpBox("감지: " + DetectedText() + "\n빠른 곡은 절반(또는 두 배)으로 잡힐 수 있습니다. 메트로놈으로 들어 보고 고르세요.", MessageType.Info);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("적용")) ApplyDetected();
+            if (GUILayout.Button("×2")) detectedFactor *= 2;
+            if (GUILayout.Button("÷2")) detectedFactor /= 2;
+            if (GUILayout.Button("취소")) detectedTempo = null;
+            GUILayout.EndHorizontal();
+        }
 
         GUILayout.Space(4);
         GUILayout.BeginHorizontal();
@@ -267,6 +280,10 @@ public partial class ChartEditorWindow
         {
             autoSnap = EditorGUILayout.ToggleLeft("격자에 맞추기 (지금 스냅 " + SnapNames[Math.Max(0, Array.IndexOf(SnapValues, snapDivision))] + ")", autoSnap);
         }
+        autoPreferBeats = EditorGUILayout.ToggleLeft("박자에 맞는 소리 우선", autoPreferBeats);
+        autoSectionDensity = EditorGUILayout.ToggleLeft("곡 구간에 따라 밀도 조절 (센 구간은 촘촘하게)", autoSectionDensity);
+        autoChords = EditorGUILayout.ToggleLeft("동시치기 만들기 (강박의 킥 + 스네어)", autoChords);
+        autoMaxJack = EditorGUILayout.IntSlider("같은 레인 최대 연속", autoMaxJack, 2, 8);
         autoRange = EditorGUILayout.Popup("범위", autoRange, AutoRangeNames);
         if (autoRange == 1 && loopEnd <= loopStart + 0.05)
             EditorGUILayout.HelpBox("구간 반복 범위가 없습니다. [ / ] 로 정하세요.", MessageType.None);
@@ -285,6 +302,20 @@ public partial class ChartEditorWindow
         {
             EditorApplication.delayCall += RequestGenerate;
         }
+
+        bool haveAnalysis = analysis != null && project.clip != null && analysisClip == project.clip;
+        EditorGUILayout.LabelField("분석: " + (haveAnalysis ? analysis.source + " · " + analysis.bpm.ToString("0.##") + " BPM · 구간 " + analysis.sections.Count + "개" : "아직 없음 (처음 누를 때 분석)"), EditorStyles.miniLabel);
+        GUILayout.BeginHorizontal();
+        using (new EditorGUI.DisabledScope(project.clip == null || analysisTask != null))
+        {
+            if (GUILayout.Button("외부 분석 불러오기")) EditorApplication.delayCall += LoadExternalAnalysis;
+        }
+        using (new EditorGUI.DisabledScope(!haveAnalysis || !analysis.IsExternal))
+        {
+            if (GUILayout.Button("내부 분석으로")) UseInternalAnalysis();
+        }
+        GUILayout.EndHorizontal();
+        EditorGUILayout.LabelField("외부 분석: 프로젝트의 Tools/chart_analyze.py로 만든 .json (음원 분리까지 하면 메탈 곡에서 더 정확합니다)", EditorStyles.wordWrappedMiniLabel);
         EditorGUILayout.LabelField("결과는 초안입니다. 범위 안의 기존 노트를 바꾸고, Ctrl+Z 한 번으로 되돌릴 수 있습니다. 같은 곡은 두 번째부터 분석 없이 바로 만들어집니다.", EditorStyles.wordWrappedMiniLabel);
     }
 

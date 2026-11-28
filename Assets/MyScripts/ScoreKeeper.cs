@@ -24,6 +24,8 @@ public class ScoreKeeper
     public int comboStep = 10;
     public float bonusPerStep = 0.1f;
     public int maxBonusSteps = 10;
+    /// <summary>점수에 추가로 곱하는 배율 (피버 타임 중 2). Referee가 정한다.</summary>
+    public float scoreMultiplier = 1f;
 
     public float Health { get; private set; }
     public int Score { get; private set; }
@@ -73,6 +75,14 @@ public class ScoreKeeper
         return change;
     }
 
+    /// <summary>체력을 amount만큼 회복한다 (하트 학생). 최대 체력을 넘지 않는다. 실제로 바뀌었으면 true.</summary>
+    public bool Heal(float amount)
+    {
+        float before = Health;
+        Health = Math.Max(0f, Math.Min(maxHealth, Health + amount));
+        return Health != before;
+    }
+
     public StageResult Result()
     {
         return new StageResult { score = Score, maxCombo = MaxCombo, perfect = Perfect, good = Good, miss = Miss };
@@ -89,7 +99,7 @@ public class ScoreKeeper
     {
         int step = Math.Min(Combo / Math.Max(1, comboStep), maxBonusSteps);
         float multiplier = 1f + step * bonusPerStep;
-        Score += (int)Math.Round(baseScore * multiplier);
+        Score += (int)Math.Round(baseScore * multiplier * scoreMultiplier);
         change.score = true;
     }
 

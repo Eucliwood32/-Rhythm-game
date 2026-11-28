@@ -40,6 +40,8 @@ public class StoryLine
 {
     public string speaker;                       // 말하는 사람. 비우면 해설(이름표 없음)
     [TextArea(2, 4)] public string text;         // [TextArea(최소 줄, 최대 줄)]: Inspector에서 여러 줄 입력 칸으로 보인다.
+    [Tooltip("이 줄에서만 쓸 초상화 (표정). 비워두면 Portraits 목록에서 이름으로 찾은 기본 그림")]
+    public Sprite portrait;
 
     // 생성자 두 개. 매개변수 없는 것은 Unity 직렬화(Inspector에서 새 줄 추가)에 필요하다.
     public StoryLine() { }
@@ -52,6 +54,29 @@ public class SpeakerPortrait
 {
     public string speaker;   // 대사의 Speaker와 똑같이 적는다 (예: 강두철)
     public Sprite sprite;    // 예) 에셋의 Characters/Roi/Portrait
+}
+
+/// <summary>구간 기믹 종류.
+/// Speed: 노트 속도 배율 / Hidden: 유령 모드 (화면 끝에서 점점 진해지며 판정선 value칸 앞에서 다 보임)
+/// Zoom: 화면 확대(value) + 기울기(tilt) / Rush: 바람 가르는 집중선·흔들림·배경 빨리 흐름 (value = 세기 0~1) / Dark: 배경 밝기 (value = 0~1)</summary>
+public enum GimmickType { Speed, Hidden, Zoom, Rush, Dark }
+
+/// <summary>곡 시간 구간 하나의 기믹. 채보는 그대로 두고 시작·끝 초만 적는다.</summary>
+[Serializable]
+public class GimmickSection
+{
+    [Tooltip("메모용 이름 (동작에는 안 씀)")]
+    public string label;
+    public GimmickType type = GimmickType.Speed;
+    [Tooltip("시작 시각 (곡 시간, 초)")] public float start;
+    [Tooltip("끝 시각 (곡 시간, 초)")] public float end;
+    [Tooltip("Speed: 배율 / Hidden: 다 보이는 거리(판정선에서) / Zoom: 확대 배율 / Rush: 세기 / Dark: 밝기")]
+    public float value = 1f;
+    [Tooltip("Zoom일 때 화면 기울기(도)")] public float tilt;
+
+    public GimmickSection() { }
+    public GimmickSection(string label, GimmickType type, float start, float end, float value, float tilt = 0f)
+    { this.label = label; this.type = type; this.start = start; this.end = end; this.value = value; this.tilt = tilt; }
 }
 
 /// <summary>스테이지 하나의 설정. 곡·채보를 비워두면 MusicPlayer·Composer의 기본값을 쓴다.</summary>
@@ -73,6 +98,8 @@ public class StageSetup
     public Sprite cutInImage;                    // 한마 바키 짤 같은 등장 컷인을 넣는 칸
     [Tooltip("스테이지 시작 전 대사")]
     public List<StoryLine> storyBefore = new List<StoryLine>();
+    [Tooltip("곡 시간 구간별 기믹 (속도 변화·서든·확대·러시·어둡게). ⋮ 메뉴 > \"기믹 추천 배치 채우기\"로 채울 수 있다")]
+    public List<GimmickSection> gimmicks = new List<GimmickSection>();
 }
 
 /// <summary>게임 전체 흐름(타이틀 → 대사 → 스테이지 → 보스전 → 결과)을 관리한다. 한 씬 안에서 진행한다.</summary>
@@ -91,6 +118,7 @@ public class GameFlow : MonoBehaviour
     [SerializeField] BossDisplay boss;           // 없어도 된다(보스 연출만 빠짐).
     [SerializeField] DebugOverlay debugOverlay;  // 없어도 된다.
     [SerializeField] BackgroundDisplay background;  // 없어도 된다. 스테이지 배경을 흘린다.
+    [SerializeField] TitleLogo titleLogo;           // 없어도 된다. 있으면 타이틀 화면에서만 로고 연출을 하고, 예전 글자 제목은 숨긴다.
 
     [Header("타이틀")]
     [SerializeField] string gameTitle = "말도 안돼! 내가 너같은 약골이랑 사귀라고?\n무리무리!!!";
@@ -128,8 +156,17 @@ public class GameFlow : MonoBehaviour
     [Tooltip("이름(Speaker)이 같은 대사에서 그 그림을 대화창 왼쪽 위에 띄운다. 해설(이름 없음)이나 목록에 없는 이름이면 숨긴다.")]
     [SerializeField] List<SpeakerPortrait> portraits = new List<SpeakerPortrait>();
 
+    [Header("구간 기믹")]
+    [Tooltip("Speed·Zoom·Rush·Dark가 바뀌는 데 걸리는 시간(초)")]
+    [SerializeField] float gimmickRamp = 1f;
+    [Tooltip("구간이 시작될 때 SPEED UP!! 같은 글자 띄우기")]
+    [SerializeField] bool gimmickBanners = true;
+
     [Header("연출 시간 (초)")]
     [SerializeField] float bossIntroTime = 2.5f;    // "보스 등장!!" 배너를 보여주는 시간. 끝나면 곡 시작
+    [Tooltip("보스 등장 컷인 위에 뜨는 글자 (비우면 글자 없이 그림만)")]
+    [SerializeField] string bossIntroText = "보스 등장!!";
+    [SerializeField] Color bossIntroColor = new Color(1f, 0.3f, 0.3f);
     [SerializeField] float stageClearTime = 2.5f;   // STAGE CLEAR / K.O. 배너 시간
     [SerializeField] float gameOverTime = 2f;       // GAME OVER 배너 시간
 
@@ -162,6 +199,7 @@ public class GameFlow : MonoBehaviour
         if (boss == null) boss = FindAnyObjectByType<BossDisplay>();
         if (debugOverlay == null) debugOverlay = FindAnyObjectByType<DebugOverlay>();
         if (background == null) background = FindAnyObjectByType<BackgroundDisplay>();   // 없어도 된다(배경만 안 나옴)
+        if (titleLogo == null) titleLogo = FindAnyObjectByType<TitleLogo>();             // 없어도 된다(글자 제목이 나옴)
 
         // MusicPlayer.Start에서 자동 재생되지 않게 막는다. Awake는 모든 Start보다 먼저 실행되므로 제때 꺼진다.
         if (music != null) music.PlayOnStart = false;   // 재생은 GameFlow가 시작한다
@@ -203,6 +241,7 @@ public class GameFlow : MonoBehaviour
     void Update()
     {
         HandleGlobalKeys();
+        UpdateGimmicks();
 
         switch (phase)
         {
@@ -257,12 +296,16 @@ public class GameFlow : MonoBehaviour
     void ShowTitle()
     {
         phase = Phase.Title;
+        EndGimmicks();
         music.Stop();
         noteDisplay.ResetForSong();        // 화면에 남은 노트 정리
         hud.SetGameplayVisible(false);
         if (boss != null) boss.Hide();
         if (background != null) background.UseDefault();
-        hud.ShowTitle(gameTitle, subtitle, "↑↓ 선택     Enter · Space · 클릭 결정");
+        // 로고 그림이 있으면 예전 글자 제목·부제는 비우고 로고 연출을 한다.
+        bool logo = titleLogo != null && titleLogo.HasLogo;
+        hud.ShowTitle(logo ? "" : gameTitle, logo ? "" : subtitle, "↑↓ 선택     Enter · Space · 클릭 결정");
+        if (logo) titleLogo.Show();
         hud.SetTitleBackground(titleBackground);
         inSettings = false;   // 타이틀로 돌아오면 항상 메인 메뉴부터
         menuIndex = 0;
@@ -272,6 +315,7 @@ public class GameFlow : MonoBehaviour
     // 한 판을 처음부터 시작. skipStory면 대사를 건너뛴다(다시 하기).
     void StartRun(bool skipStory)
     {
+        if (titleLogo != null) titleLogo.Hide();   // 타이틀을 떠나면 로고를 숨긴다
         results.Clear();
         resultTitles.Clear();
         stageIndex = 0;
@@ -291,6 +335,7 @@ public class GameFlow : MonoBehaviour
         }
 
         StageSetup s = stages[stageIndex];
+        EndGimmicks();
         hud.HideOverlays();
         hud.SetGameplayVisible(false);
         if (boss != null) boss.Hide();
@@ -314,6 +359,7 @@ public class GameFlow : MonoBehaviour
         composer.Load(s.chart);        // null이면 Composer의 기본 채보
         judge.ResetState();
         referee.ResetForStage();
+        BeginGimmicks(s.gimmicks);   // 속도 표는 노트가 화면에 오르기 전에 정해야 한다
         noteDisplay.ResetForSong();
 
         hud.HideOverlays();
@@ -324,7 +370,7 @@ public class GameFlow : MonoBehaviour
         if (s.isBoss && boss != null)
         {
             boss.Begin(composer.TotalCount, s.bossName, s.bossSprite);   // 전체 노트 수 = 보스 체력 기준
-            hud.ShowBanner("보스 등장!!", new Color(1f, 0.3f, 0.3f), s.cutInImage, bossIntroTime);
+            hud.ShowBanner(bossIntroText, bossIntroColor, s.cutInImage, bossIntroTime);
             CameraShake.Shake(0.3f, 0.6f);
             phase = Phase.BossIntro;   // 타이머가 끝나면 Update에서 PlayStage
             timer = bossIntroTime;
@@ -351,6 +397,7 @@ public class GameFlow : MonoBehaviour
         resultTitles.Add(s.title);
 
         bool bossStage = s.isBoss && boss != null;
+        EndGimmicks();
         if (bossStage) boss.Defeat();   // 보스가 날아가는 연출
         hud.ShowBanner(bossStage ? "K.O.!!" : "STAGE CLEAR", new Color(1f, 0.9f, 0.3f), null, stageClearTime);
         phase = Phase.StageClear;
@@ -382,6 +429,7 @@ public class GameFlow : MonoBehaviour
     {
         if (phase != Phase.Playing) return;
         failed = r;   // 결과 화면에 실패한 스테이지 기록도 보여주려고 저장
+        EndGimmicks();
         hud.ShowBanner("GAME OVER", new Color(1f, 0.3f, 0.3f), null, gameOverTime);
         CameraShake.Shake(0.3f, 0.5f);
         phase = Phase.GameOver;
@@ -448,7 +496,9 @@ public class GameFlow : MonoBehaviour
     void ShowLine()
     {
         StoryLine line = story[storyIndex];
-        hud.ShowStory(line.speaker, line.text, "Space ▶     Esc 건너뛰기", PortraitOf(line.speaker));
+        // 줄마다 넣은 초상화(표정)가 있으면 그것, 없으면 이름으로 찾은 기본 초상화
+        Sprite face = line.portrait != null ? line.portrait : PortraitOf(line.speaker);
+        hud.ShowStory(line.speaker, line.text, "Space ▶     Esc 건너뛰기", face);
     }
 
     // 이름에 맞는 초상화를 찾는다. 없으면 null(초상화 숨김).
@@ -540,6 +590,222 @@ public class GameFlow : MonoBehaviour
         }
         ending = new List<StoryLine>();
         Debug.Log("[GameFlow] 대사를 시나리오 기본값으로 바꿨습니다. (Ctrl+Z로 되돌리기)");
+    }
+
+    // 일반 스테이지(보스 아님)의 첫 번째에는 Road of Resistance, 보스 스테이지에는 Homura용 추천 기믹을 넣는다.
+    // 곡·채보·대사는 건드리지 않는다. 채보를 바꾸면 Gimmicks 목록의 시작·끝 초만 고치면 된다.
+    [ContextMenu("기믹 추천 배치 채우기")]
+    void ApplyGimmickPreset()
+    {
+#if UNITY_EDITOR
+        UnityEditor.Undo.RecordObject(this, "기믹 추천 배치 채우기");
+#endif
+        bool normalDone = false;
+        foreach (StageSetup s in stages)
+        {
+            if (s.isBoss) s.gimmicks = HomuraPreset();
+            else if (!normalDone) { s.gimmicks = RoadPreset(); normalDone = true; }
+        }
+        Debug.Log("[GameFlow] 기믹 추천 배치를 채웠습니다. (Ctrl+Z로 되돌리기)");
+    }
+
+    // ───────────────────────── 구간 기믹 ─────────────────────────
+    // 스테이지의 Gimmicks 목록(시작·끝 초)에 따라 곡 시간 구간마다 연출을 바꾼다. 채보는 건드리지 않는다.
+    //   속도: NoteDisplay에 "시간별 속도 배율 표"를 넘긴다 → 판정 시각은 그대로, 노트가 빨리/느리게 흐른다.
+    //   서든: NoteDisplay.HiddenDistance / 어둡게·러시 배경: BackgroundDisplay / 집중선: ScreenFx / 확대·기울기: 카메라
+
+    List<GimmickSection> activeGimmicks;   // 지금 스테이지의 구간 목록 (없으면 null)
+    bool[] gimmickAnnounced;               // 구간마다 시작 글자를 띄웠는지
+    double gimmickLastTime;
+    float camBaseSize = 5f;
+    bool camTouched;                       // 카메라를 건드렸는지 (원래대로 돌려놓아야 하는지)
+    float nextRushShake;
+    const float GimmickStep = 0.01f;       // 속도 표 간격 (초)
+
+    void BeginGimmicks(List<GimmickSection> list)
+    {
+        EndGimmicks();
+        activeGimmicks = list != null && list.Count > 0 ? list : null;
+        gimmickAnnounced = activeGimmicks != null ? new bool[activeGimmicks.Count] : null;
+        gimmickLastTime = -999;
+        Camera cam = Camera.main;
+        if (cam != null) camBaseSize = cam.orthographicSize;
+        noteDisplay.SetSpeedCurve(BuildSpeedCurve(), GimmickStep);
+    }
+
+    void EndGimmicks()
+    {
+        activeGimmicks = null;
+        if (noteDisplay != null) { noteDisplay.SetSpeedCurve(null, GimmickStep); noteDisplay.HiddenDistance = 0f; }
+        if (background != null) { background.SetDim(1f); background.SpeedBoost = 1f; }
+        ScreenFx.SetSpeedLines(0f);
+        Camera cam = Camera.main;
+        if (camTouched && cam != null)
+        {
+            cam.orthographicSize = camBaseSize;
+            cam.transform.rotation = Quaternion.identity;
+        }
+        camTouched = false;
+    }
+
+    // 0.01초마다의 속도 배율 표. Speed 구간이 없으면 null (속도 변화 없음).
+    float[] BuildSpeedCurve()
+    {
+        if (activeGimmicks == null) return null;
+        float last = 0f;
+        bool any = false;
+        foreach (var g in activeGimmicks)
+            if (g != null && g.type == GimmickType.Speed) { any = true; last = Mathf.Max(last, g.end); }
+        if (!any) return null;
+        int n = Mathf.CeilToInt((last + gimmickRamp + 2f) / GimmickStep) + 1;
+        var mult = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float t = i * GimmickStep, m = 1f;
+            foreach (var g in activeGimmicks)
+                if (g != null && g.type == GimmickType.Speed) m += GimmickWeight(g, t) * (g.value - 1f);
+            mult[i] = Mathf.Max(0.2f, m);   // 너무 느려지거나 거꾸로 가지 않게
+        }
+        return mult;
+    }
+
+    // 구간의 세기 0~1: 시작부터 gimmickRamp초 동안 0 → 1, 끝부터 gimmickRamp초 동안 1 → 0 (부드러운 S자)
+    float GimmickWeight(GimmickSection g, float t)
+    {
+        float r = Mathf.Max(0.01f, gimmickRamp);
+        float up = Mathf.Clamp01((t - g.start) / r);
+        float down = 1f - Mathf.Clamp01((t - g.end) / r);
+        return Mathf.SmoothStep(0f, 1f, up) * Mathf.SmoothStep(0f, 1f, down);
+    }
+
+    void UpdateGimmicks()
+    {
+        if (activeGimmicks == null || music == null || !music.IsStarted) return;
+        double now = music.SongTime;
+        if (now < gimmickLastTime - 1.0) Array.Clear(gimmickAnnounced, 0, gimmickAnnounced.Length);   // 곡이 처음부터 다시 시작됨
+        gimmickLastTime = now;
+        float t = (float)now;
+
+        float hidden = 0f, zoom = 1f, tilt = 0f, rush = 0f, dim = 1f;
+        GimmickSection announce = null;
+        for (int i = 0; i < activeGimmicks.Count; i++)
+        {
+            var g = activeGimmicks[i];
+            if (g == null) continue;
+            if (!gimmickAnnounced[i] && t >= g.start && t < g.end)
+            {
+                gimmickAnnounced[i] = true;
+                // 같은 순간에 여러 기믹이 시작하면 알림은 하나만 (러시 > 블라인드 > 가속)
+                if (announce == null || GimmickPriority(g) > GimmickPriority(announce)) announce = g;
+            }
+            float w = GimmickWeight(g, t);
+            if (w <= 0f) continue;
+            switch (g.type)
+            {
+                case GimmickType.Hidden:
+                    if (t >= g.start && t < g.end) hidden = hidden > 0f ? Mathf.Min(hidden, g.value) : g.value;
+                    break;
+                case GimmickType.Zoom: zoom *= Mathf.Lerp(1f, g.value, w); tilt += g.tilt * w; break;
+                case GimmickType.Rush: rush = Mathf.Max(rush, Mathf.Clamp01(g.value) * w); break;
+                case GimmickType.Dark: dim = Mathf.Min(dim, Mathf.Lerp(1f, g.value, w)); break;
+            }
+        }
+
+        if (announce != null && Time.time >= nextGimmickBanner)
+        {
+            AnnounceGimmick(announce);
+            nextGimmickBanner = Time.time + 1.2f;   // 알림이 연달아 겹쳐 뜨지 않게
+        }
+        noteDisplay.HiddenDistance = hidden;
+        if (background != null) { background.SetDim(dim); background.SpeedBoost = 1f + rush * 0.8f; }
+        ScreenFx.SetSpeedLines(rush * 0.7f);
+        if (rush > 0.05f && Time.time >= nextRushShake)
+        {
+            nextRushShake = Time.time + 0.45f;
+            CameraShake.Shake(0.04f * rush, 0.1f);
+        }
+
+        // 카메라: 확대·기울기가 있거나 원래대로 돌아가는 중일 때만 건드린다 (보스 피니시 확대와 안 싸우게)
+        Camera cam = Camera.main;
+        bool want = zoom < 0.999f || Mathf.Abs(tilt) > 0.01f;
+        if (cam != null && (want || camTouched))
+        {
+            cam.orthographicSize = want ? camBaseSize * zoom : camBaseSize;
+            cam.transform.rotation = want ? Quaternion.Euler(0f, 0f, tilt) : Quaternion.identity;
+            camTouched = want;
+        }
+    }
+
+    float nextGimmickBanner;
+
+    // 알림 우선순위: 알림이 없는 기믹(확대·어둠)은 0
+    static int GimmickPriority(GimmickSection g)
+    {
+        switch (g.type)
+        {
+            case GimmickType.Rush: return 3;
+            case GimmickType.Hidden: return 2;
+            case GimmickType.Speed: return Mathf.Abs(g.value - 1f) > 0.01f ? 1 : 0;
+            default: return 0;
+        }
+    }
+
+    void AnnounceGimmick(GimmickSection g)
+    {
+        if (!gimmickBanners) return;
+        switch (g.type)
+        {
+            case GimmickType.Speed:
+                if (g.value > 1.01f) ScreenFx.Banner("SPEED UP!!", new Color(1f, 0.55f, 0.2f), 110f, 1f);
+                else if (g.value < 0.99f) ScreenFx.Banner("SLOW…", new Color(0.5f, 0.8f, 1f), 110f, 1f);
+                break;
+            case GimmickType.Hidden: ScreenFx.Banner("BLIND!", new Color(0.8f, 0.6f, 1f), 110f, 1f); break;
+            case GimmickType.Rush: ScreenFx.Banner("RUSH!!!", new Color(1f, 0.3f, 0.25f), 130f, 1f); break;
+        }
+    }
+
+    // Road of Resistance (일반전, 약 5분 10초) 추천 기믹. 거의 내내 가속이 오르내리고, 쉬는 구간(1.0배)은 짧게만 둔다.
+    static List<GimmickSection> RoadPreset()
+    {
+        return new List<GimmickSection>
+        {
+            new GimmickSection("가속 1", GimmickType.Speed, 20f, 45f, 1.15f),
+            new GimmickSection("가속 2", GimmickType.Speed, 55f, 75f, 1.25f),
+            new GimmickSection("가속 3", GimmickType.Speed, 75f, 95f, 1.35f),
+            new GimmickSection("유령 모드", GimmickType.Hidden, 105f, 120f, 7f),
+            new GimmickSection("가속 4", GimmickType.Speed, 120f, 135f, 1.3f),
+            new GimmickSection("최고 밀도 가속", GimmickType.Speed, 135f, 150f, 1.45f),
+            new GimmickSection("최고 밀도 러시", GimmickType.Rush, 135f, 150f, 0.8f),
+            new GimmickSection("러시 줌", GimmickType.Zoom, 135f, 150f, 0.9f, 3f),
+            new GimmickSection("가속 5", GimmickType.Speed, 160f, 180f, 1.2f),
+            new GimmickSection("가속 6", GimmickType.Speed, 180f, 195f, 1.35f),
+            new GimmickSection("가속 7", GimmickType.Speed, 195f, 225f, 1.45f),
+            new GimmickSection("가속 8", GimmickType.Speed, 225f, 240f, 1.25f),
+            new GimmickSection("거대 반장 구간 어둡게", GimmickType.Dark, 240f, 260f, 0.55f),
+            new GimmickSection("가속 9", GimmickType.Speed, 255f, 270f, 1.35f),
+            new GimmickSection("클라이맥스 가속", GimmickType.Speed, 270f, 285f, 1.6f),
+            new GimmickSection("클라이맥스 러시", GimmickType.Rush, 270f, 285f, 1f),
+            new GimmickSection("클라이맥스 줌", GimmickType.Zoom, 270f, 285f, 0.88f, -3f),
+            new GimmickSection("마무리 가속", GimmickType.Speed, 285f, 300f, 1.3f),
+        };
+    }
+
+    // Homura (보스전, 약 3분 14초) 추천 기믹. 단계마다 가속이 세지고, 기공파 구간(90~125초)만 1.0배로 숨을 돌린다.
+    static List<GimmickSection> HomuraPreset()
+    {
+        return new List<GimmickSection>
+        {
+            new GimmickSection("가속 1", GimmickType.Speed, 15f, 45f, 1.15f),
+            new GimmickSection("가속 2", GimmickType.Speed, 50f, 75f, 1.25f),
+            new GimmickSection("가속 3", GimmickType.Speed, 75f, 90f, 1.35f),
+            new GimmickSection("기공파 난사 (어둡게)", GimmickType.Dark, 90f, 125f, 0.5f),
+            new GimmickSection("돌진 구간 가속", GimmickType.Speed, 128f, 150f, 1.35f),
+            new GimmickSection("유령 모드", GimmickType.Hidden, 150f, 165f, 7f),
+            new GimmickSection("유령 구간 가속", GimmickType.Speed, 150f, 165f, 1.2f),
+            new GimmickSection("바키식 러시 가속", GimmickType.Speed, 165f, 188f, 1.5f),
+            new GimmickSection("바키식 러시", GimmickType.Rush, 165f, 188f, 1f),
+            new GimmickSection("러시 줌", GimmickType.Zoom, 165f, 188f, 0.9f, 2f),
+        };
     }
 
     // ───────────────────────── 타이틀 메뉴 ─────────────────────────

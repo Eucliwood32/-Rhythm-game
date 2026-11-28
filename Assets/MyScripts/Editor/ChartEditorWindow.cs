@@ -65,7 +65,8 @@ public partial class ChartEditorWindow : EditorWindow
     static readonly string[] SnapNames = { "1/4", "1/8", "1/12", "1/16", "1/24", "1/32", "끄기" };
     static readonly string[] DifficultyNames = { "쉬움", "보통", "어려움", "매우 어려움" };
     static readonly double[] DifficultyGaps = { 0.45, 0.28, 0.16, 0.10 };
-    static readonly string[] AutoLaneNames = { "교대", "음높이 (저음 = B)", "랜덤" };
+    static readonly double[] DifficultyNps = { 3.5, 5.5, 8, 12 };   // 1초 안의 최대 노트 수
+    static readonly string[] AutoLaneNames = { "교대", "음높이 (저음 = B)", "랜덤", "드럼 (킥 = B, 스네어 = A)" };
     static readonly string[] AutoRangeNames = { "곡 전체", "구간 반복 범위", "재생 위치부터 끝까지" };
 
     static readonly Color ColBg = new Color(0.10f, 0.11f, 0.14f);
@@ -101,13 +102,17 @@ public partial class ChartEditorWindow : EditorWindow
     // 자동 생성 설정
     [SerializeField] int autoDifficulty = 1;
     [SerializeField] int autoSensitivity = 60;
-    [SerializeField] AutoLaneMode autoLane = AutoLaneMode.Alternate;
+    [SerializeField] AutoLaneMode autoLane = AutoLaneMode.Drums;
     [SerializeField] bool autoLongs = true;
     [SerializeField] float autoMinLong = 0.6f;
     [SerializeField] bool autoBarrages = true;
     [SerializeField] int autoMinBarrage = 6;
     [SerializeField] bool autoSnap = true;
     [SerializeField] int autoRange;
+    [SerializeField] bool autoPreferBeats = true;
+    [SerializeField] bool autoSectionDensity = true;
+    [SerializeField] bool autoChords = true;
+    [SerializeField] int autoMaxJack = 4;
 
     EditorAudio audio = new EditorAudio();
     readonly List<NoteData> selection = new List<NoteData>();
@@ -149,6 +154,9 @@ public partial class ChartEditorWindow : EditorWindow
     volatile float analysisProgress;
     volatile bool analysisCancel;
     bool generateWhenReady;
+    bool detectWhenReady;          // 분석이 끝나면 BPM 감지 결과를 보여 준다
+    List<TempoPoint> detectedTempo;  // 감지한 BPM 구간 (적용 전)
+    double detectedFactor = 1;     // ×2 / ÷2
 
     // 드래그 상태
     DragMode drag;

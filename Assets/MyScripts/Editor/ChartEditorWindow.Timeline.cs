@@ -216,7 +216,7 @@ public partial class ChartEditorWindow
         EditorGUI.DrawRect(head, col);
         EditorGUI.DrawRect(new Rect(head.x, head.y, head.width, 3), new Color(1f, 1f, 1f, 0.3f));
         if (n.type == NoteType.Long) GUI.Label(head, "LONG", noteLabel);
-        else if (n.type == NoteType.Barrage) GUI.Label(head, "연타 ×" + n.count, noteLabel);
+        else if (n.type == NoteType.Barrage) GUI.Label(head, "연타", noteLabel);   // 판정은 입력 간격으로 하므로 횟수는 표시하지 않는다
 
         if (playMode == PlayMode.Test && testMiss.Contains(n))
         {

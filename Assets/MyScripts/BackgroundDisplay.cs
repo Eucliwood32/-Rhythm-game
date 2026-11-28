@@ -46,6 +46,7 @@ public class BackgroundDisplay : MonoBehaviour
         public BackgroundLayer layer;
         public Transform root;
         public readonly List<Transform> tiles = new List<Transform>();
+        public readonly List<SpriteRenderer> renderers = new List<SpriteRenderer>();   // 색을 한꺼번에 바꿀 때 씀
         public float tileWidth;
     }
 
@@ -56,6 +57,40 @@ public class BackgroundDisplay : MonoBehaviour
     bool wasPlaying;
     float builtViewWidth, builtViewHeight;
     Transform container;
+    Color tintMultiplier = Color.white;   // 모든 겹에 곱하는 색 (BossPhaseFx가 보스 HP에 따라 붉게 바꿈)
+
+    float dim = 1f;   // 밝기 (StageGimmicks의 Dark 기믹). 1이면 원래 밝기
+
+    /// <summary>배경이 흐르는 빠르기 배율 (StageGimmicks의 Rush 기믹). 1이면 노트와 같은 빠르기.</summary>
+    public float SpeedBoost { get; set; } = 1f;
+
+    /// <summary>모든 배경 겹의 색에 c를 곱한다. Color.white면 원래 색.</summary>
+    public void SetTintMultiplier(Color c)
+    {
+        tintMultiplier = c;
+        ApplyColors();
+    }
+
+    /// <summary>배경 밝기 (0~1). Dark 기믹이 쓴다. HP 연출 색(SetTintMultiplier)과 따로 곱해진다.</summary>
+    public void SetDim(float d)
+    {
+        d = Mathf.Clamp01(d);
+        if (Mathf.Abs(d - dim) < 0.001f) return;
+        dim = d;
+        ApplyColors();
+    }
+
+    Color Multiplier => new Color(tintMultiplier.r * dim, tintMultiplier.g * dim, tintMultiplier.b * dim, tintMultiplier.a);
+
+    void ApplyColors()
+    {
+        Color m = Multiplier;
+        foreach (Built b in built)
+        {
+            Color baseTint = b.layer.tint.a <= 0f ? Color.white : b.layer.tint;
+            foreach (SpriteRenderer r in b.renderers) if (r != null) r.color = baseTint * m;
+        }
+    }
 
     void Awake()
     {
@@ -103,7 +138,7 @@ public class BackgroundDisplay : MonoBehaviour
             double t = music.SongTime;
             double d = t - lastSongTime;
             if (!wasPlaying || d < 0 || d > 0.5) d = Time.deltaTime;   // 곡이 새로 시작했거나 위치가 튀면 한 프레임만큼
-            distance += d * speed;
+            distance += d * speed * SpeedBoost;
             lastSongTime = t;
         }
         else
@@ -143,7 +178,10 @@ public class BackgroundDisplay : MonoBehaviour
 
             Vector3 size = layer.sprite.bounds.size;
             if (size.x <= 0f || size.y <= 0f) continue;
-            float s = layer.fitScreenHeight ? viewH / size.y : Mathf.Max(0.01f, layer.scale);
+            float s = layer.fitScreenHeight ? viewH / size.y : (layer.scale > 0f ? layer.scale : 1f);
+            // Inspector의 + 버튼으로 칸을 추가하면 Tint가 (0,0,0,0) = 완전 투명, Scale이 0으로 들어간다.
+            // 그대로면 배경이 안 보이므로, 투명도 0인 Tint는 흰색(원래 색)으로 친다.
+            Color tint = layer.tint.a <= 0f ? Color.white : layer.tint;
 
             var b = new Built { layer = layer, tileWidth = size.x * s };
             b.root = new GameObject("BackgroundLayer" + li).transform;
@@ -152,7 +190,8 @@ public class BackgroundDisplay : MonoBehaviour
             int count = Mathf.CeilToInt(viewW / b.tileWidth) + 2;   // 화면을 덮고 양옆에 한 장씩 여유
             for (int i = 0; i < count; i++)
             {
-                var sr = ProcSprites.Make("Tile" + i, b.root, layer.sprite, layer.tint, sortingOrderBack + li);
+                var sr = ProcSprites.Make("Tile" + i, b.root, layer.sprite, tint * Multiplier, sortingOrderBack + li);
+                b.renderers.Add(sr);
                 sr.transform.localScale = new Vector3(s, s, 1f);
                 b.tiles.Add(sr.transform);
             }

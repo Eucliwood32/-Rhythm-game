@@ -277,9 +277,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BossDisplay
   judge: {fileID: 973000694}
   hud: {fileID: 2042211160}
-  defaultSprite: {fileID: 0}
-  position: {x: 5.6, y: 1.4}
-  height: 3.4
+  defaultSprite: {fileID: 21300000, guid: 9cc66ba690473fe40844ef1477bc88d4, type: 3}
+  hitSprite: {fileID: 21300000, guid: f2529e68b079faa4f8a208190d0b2311, type: 3}
+  hitSpriteTime: 0.18
+  defeatSprite: {fileID: 21300000, guid: 1fef429d52777cb419f01ccf7186a817, type: 3}
+  chargeSprite: {fileID: 0}
+  windupColor: {r: 1, g: 0.45, b: 0.4, a: 1}
+  chargeBonusHits: 3
+  returnTime: 0.6
+  beamSprite: {fileID: 0}
+  beamGlowColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  beamBonusHits: 2
+  healthSprites:
+  - below: 0.7
+    sprite: {fileID: 21300000, guid: d60481c4e75c6e743b509bb86fe0d61f, type: 3}
+  - below: 0.4
+    sprite: {fileID: 21300000, guid: eed1ae06dfc4c0f498bc9e6bccf8e503, type: 3}
+  - below: 0.15
+    sprite: {fileID: 21300000, guid: 79faf2b12bc61c3439fde193dce2311c, type: 3}
+  starTime: 1.1
+  starOffset: {x: 2.5, y: 4.5}
+  position: {x: 6, y: 0.8}
+  flipX: 1
+  height: 6.5
 --- !u!4 &243205440
 Transform:
   m_ObjectHideFlags: 0
@@ -327,6 +347,8 @@ MonoBehaviour:
   judge: {fileID: 973000694}
   noteDisplay: {fileID: 1603289164}
   boss: {fileID: 243205439}
+  referee: {fileID: 0}
+  feverLaunch: 1.35
   studentPrefab: {fileID: 0}
   enemySprites: []
   enemyHeight: 3
@@ -338,6 +360,9 @@ MonoBehaviour:
   gravityScale: 1.6
   maxSpin: 900
   studentsCollide: 0
+  screenKoChance: 0.1
+  screenKoCooldown: 6
+  screenKoScale: 4.5
   throwTime: 0.45
   lifetime: 3
   maxStudents: 40
@@ -373,6 +398,7 @@ GameObject:
   - component: {fileID: 973000694}
   - component: {fileID: 973000693}
   - component: {fileID: 973000698}
+  - component: {fileID: 973000699}
   m_Layer: 0
   m_Name: Game
   m_TagString: Untagged
@@ -486,7 +512,7 @@ Transform:
   m_GameObject: {fileID: 973000687}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0, y: -0, z: -0}
+  m_LocalPosition: {x: 0, y: -0, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -508,13 +534,19 @@ MonoBehaviour:
   music: {fileID: 973000697}
   maxHealth: 100
   missDamage: 10
-  perfectHeal: 1
+  perfectHeal: 0
   goodHeal: 0
   perfectScore: 300
   goodScore: 100
   comboStep: 10
   bonusPerStep: 0.1
   maxBonusSteps: 10
+  feverGaugeMax: 60
+  feverPerfectGain: 1
+  feverGoodGain: 0.5
+  feverMissPenalty: 6
+  feverTime: 8
+  feverScoreMultiplier: 2
 --- !u!114 &973000694
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -638,38 +670,150 @@ MonoBehaviour:
   boss: {fileID: 243205439}
   debugOverlay: {fileID: 1626639938}
   background: {fileID: 2129329446}
+  titleLogo: {fileID: 0}
   gameTitle: "\uB9D0\uB3C4 \uC548\uB3FC! \uB0B4\uAC00 \uB108\uAC19\uC740 \uC57D\uACE8\uC774\uB791
     \uC0AC\uADC0\uB77C\uACE0?\n\uBB34\uB9AC\uBB34\uB9AC!!!"
   subtitle: "~\uC804\uC0DD\uC5D0 \uB098\uB77C\uB97C \uAD6C\uD55C \uB098, \uB2E4\uC2DC
     \uD55C\uBC88 \uADF8\uB140\uC5D0\uAC8C \uC0AC\uB791\uC744 \uB3C4\uC804\uD558\uB2E4~"
-  titleBackground: {fileID: 0}
+  titleBackground: {fileID: 21300000, guid: 2d880dea1cd5af94e8627c6957152a64, type: 3}
   skipTitleAndStory: 0
   stages:
   - title: BOSS
-    clip: {fileID: 0}
-    chart: {fileID: 0}
-    background: []
+    clip: {fileID: 8300000, guid: ef9c50906d345e24789d9f84a52d985d, type: 3}
+    chart: {fileID: 4900000, guid: 289daa765eb319648a19936e86c374f9, type: 3}
+    background:
+    - sprite: {fileID: 21300000, guid: 3d8f9ab429c95024fb93f7c4cb271fd1, type: 3}
+      speed: 0.3
+      fitScreenHeight: 1
+      scale: 0
+      yOffset: 0
+      tint: {r: 1, g: 0.9803922, b: 1, a: 1}
     isBoss: 1
-    bossName: ???
-    bossSprite: {fileID: 0}
-    cutInImage: {fileID: 0}
+    bossName: "\uD788\uCE74\uB9AC"
+    bossSprite: {fileID: 21300000, guid: d60481c4e75c6e743b509bb86fe0d61f, type: 3}
+    cutInImage: {fileID: 21300000, guid: 92c0c87994cbf4041b1f311f66983a6d, type: 3}
     storyBefore:
-    - speaker: ???
-      text: "...\uAC70\uAE30\uAE4C\uC9C0\uB2E4."
-    - speaker: "\uAC15\uB450\uCCA0"
-      text: "\uB204, \uB204\uAD6C\uB0D0!"
     - speaker: "\uD788\uCE74\uB9AC"
-      text: "\uC800 \uC0AC\uB78C\uAE4C\uC9C0 \uC774\uAE30\uBA74... \uC9C4\uC9DC\uB85C
-        \uC0DD\uAC01\uD574 \uBCFC\uAC8C."
-  ending:
-  - speaker: "\uD788\uCE74\uB9AC"
-    text: "...\uD765. \uC57D\uACE8\uCE58\uACE0\uB294 \uC81C\uBC95\uC774\uB124."
-  - speaker: "\uAC15\uB450\uCCA0"
-    text: "(\uC804\uC0DD\uC5D0 \uC774\uC5B4 \uC774\uBC88 \uC0DD\uB3C4... \uD574\uB0C8\uB2E4!)"
+      text: "\uD638\uC624.. \uC804\uBD80 \uC4F0\uB7EC\uB728\uB838\uAD70."
+      portrait: {fileID: 0}
+    - speaker: 
+      text: "\uC0B0\uCC98\uB7FC \uC313\uC778 \uC804\uAD50\uC0DD\uC758 \uC5B8\uB355
+        \uC704\uB85C, \uADF8\uB140\uAC00 \uBAA8\uC2B5\uC744 \uB4DC\uB7EC\uB0C8\uB2E4."
+      portrait: {fileID: 0}
+    - speaker: "\uAC15\uB450\uCCA0"
+      text: "\uD788\uCE74\uB9AC! \uC774\uC81C \uC57D\uC18D\uB300\uB85C \uB0B4 \uC5F0\uC778\uC774
+        \uB418\uC5B4\uC11C, \uD3C9\uC0DD \uB098\uC5D0\uAC8C \uB41C\uC7A5\uCC0C\uAC1C\uC640
+        \uACC4\uB780\uD6C4\uB77C\uC774\uB97C \uB9CC\uB4E4\uC5B4 \uC918\uB77C!"
+      portrait: {fileID: 0}
+    - speaker: "\uD788\uCE74\uB9AC"
+      text: "\uB0B4\uAC00 \uC5B8\uC81C \uC5F0\uC778\uC774\uB77C \uD588\uC9C0?"
+      portrait: {fileID: 0}
+    - speaker: "\uD788\uCE74\uB9AC"
+      text: "\uB098\uBCF4\uB2E4 \uC57D\uD55C \uC790\uC758 \uB9D0\uC740 \uB4E3\uC9C0
+        \uC54A\uB294\uB2E4. \uB108\uB294 \uB098\uBCF4\uB2E4 \uC57D\uD55C\uAC00, \uAC15\uD55C\uAC00?"
+      portrait: {fileID: 0}
+    - speaker: "\uAC15\uB450\uCCA0"
+      text: "\uBB63!! \uADF8\uB798 \uC88B\uB2E4! \uB098 \uC0AC\uB098\uC774 \uAC15\uB450\uCCA0,
+        \uC774\uBC88\uC5D0\uC57C\uB9D0\uB85C\u2026 12\uB144 \uB9CC\uC5D0 \uB2E4\uC2DC\uAE08
+        \uB108\uC758 \uB9C8\uC74C\uC744 \uBE8F\uC5B4 \uAC00 \uC8FC\uC9C0!"
+      portrait: {fileID: 0}
+    gimmicks:
+    - label: "\uAC00\uC18D 1"
+      type: 0
+      start: 15
+      end: 45
+      value: 1.15
+      tilt: 0
+    - label: "\uAC00\uC18D 2"
+      type: 0
+      start: 50
+      end: 75
+      value: 1.25
+      tilt: 0
+    - label: "\uAC00\uC18D 3"
+      type: 0
+      start: 75
+      end: 90
+      value: 1.35
+      tilt: 0
+    - label: "\uAE30\uACF5\uD30C \uB09C\uC0AC (\uC5B4\uB461\uAC8C)"
+      type: 4
+      start: 90
+      end: 125
+      value: 0.5
+      tilt: 0
+    - label: "\uB3CC\uC9C4 \uAD6C\uAC04 \uAC00\uC18D"
+      type: 0
+      start: 128
+      end: 150
+      value: 1.35
+      tilt: 0
+    - label: "\uC720\uB839 \uBAA8\uB4DC"
+      type: 1
+      start: 150
+      end: 165
+      value: 7
+      tilt: 0
+    - label: "\uC720\uB839 \uAD6C\uAC04 \uAC00\uC18D"
+      type: 0
+      start: 150
+      end: 165
+      value: 1.2
+      tilt: 0
+    - label: "\uBC14\uD0A4\uC2DD \uB7EC\uC2DC \uAC00\uC18D"
+      type: 0
+      start: 165
+      end: 188
+      value: 1.5
+      tilt: 0
+    - label: "\uBC14\uD0A4\uC2DD \uB7EC\uC2DC"
+      type: 3
+      start: 165
+      end: 188
+      value: 1
+      tilt: 0
+    - label: "\uB7EC\uC2DC \uC90C"
+      type: 2
+      start: 165
+      end: 188
+      value: 0.9
+      tilt: 2
+  ending: []
   portraits: []
+  gimmickRamp: 1
+  gimmickBanners: 1
   bossIntroTime: 2.5
+  bossIntroText: "\uBCF4\uC2A4 \uB4F1\uC7A5!!"
+  bossIntroColor: {r: 1, g: 0.3, b: 0.3, a: 1}
   stageClearTime: 2.5
   gameOverTime: 2
+--- !u!114 &973000699
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 973000687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e6040a10d355b8d4d88a37db9e0a3af7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BossPhaseFx
+  judge: {fileID: 0}
+  noteDisplay: {fileID: 0}
+  boss: {fileID: 0}
+  background: {fileID: 0}
+  font: {fileID: 0}
+  phase1: 0.5
+  phase2: 0.3
+  phase1Tint: {r: 1, g: 0.75, b: 0.65, a: 1}
+  phase2Tint: {r: 1, g: 0.5, b: 0.42, a: 1}
+  edgeColor: {r: 1, g: 0.1, b: 0.05, a: 1}
+  edgeStrength: 0.55
+  slowScale: 0.25
+  slowTime: 1.2
+  zoom: 0.8
+  finishText: FINISH!!
 --- !u!1 &1088332112
 GameObject:
   m_ObjectHideFlags: 0
@@ -681,6 +825,7 @@ GameObject:
   - component: {fileID: 1088332115}
   - component: {fileID: 1088332114}
   - component: {fileID: 1088332113}
+  - component: {fileID: 1088332116}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -762,6 +907,50 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1088332116
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1088332112}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalCameraData
+  m_RenderShadows: 1
+  m_RequiresDepthTextureOption: 2
+  m_RequiresOpaqueTextureOption: 2
+  m_CameraType: 0
+  m_Cameras: []
+  m_RendererIndex: -1
+  m_VolumeLayerMask:
+    serializedVersion: 2
+    m_Bits: 1
+  m_VolumeTrigger: {fileID: 0}
+  m_VolumeFrameworkUpdateModeOption: 2
+  m_RenderPostProcessing: 0
+  m_Antialiasing: 0
+  m_AntialiasingQuality: 2
+  m_StopNaN: 0
+  m_Dithering: 0
+  m_ClearDepth: 1
+  m_AllowXRRendering: 1
+  m_AllowHDROutput: 1
+  m_UseScreenCoordOverride: 0
+  m_ScreenSizeOverride: {x: 0, y: 0, z: 0, w: 0}
+  m_ScreenCoordScaleBias: {x: 0, y: 0, z: 0, w: 0}
+  m_RequiresDepthTexture: 0
+  m_RequiresColorTexture: 0
+  m_TaaSettings:
+    m_Quality: 3
+    m_FrameInfluence: 0.1
+    m_JitterScale: 1
+    m_MipBias: 0
+    m_VarianceClampScale: 0.9
+    m_ContrastAdaptiveSharpening: 0
+  m_Version: 2
 --- !u!1 &1253901366
 GameObject:
   m_ObjectHideFlags: 0
@@ -804,9 +993,9 @@ MonoBehaviour:
   - {fileID: 21300000, guid: a8114190b3afdad0aa7a8c769aa605ee, type: 3}
   hitSprite: {fileID: 21300000, guid: 3e05097ddff241a1fba1f5b93a2b21b5, type: 3}
   spriteHeight: 5
-  spriteOrder: -5
+  spriteOrder: -3
   bodySprite: {fileID: 0}
-  distanceFromJudge: 1.5
+  distanceFromJudge: 2.5
   upperMoveName: "\uC288\uD37C \uB4DC\uB798\uACE4 \uB77C\uC774\uC9D5 \uC5B4\uD37C\uCEF7!!"
   lowerMoveName: "\uD5E5\uD1A0\uD30C\uC2A4\uCE7C \uB4DC\uB9B4 \uCD08\uC804\uB3C4\uCCB4
     \uD0A5!!"
@@ -837,6 +1026,7 @@ GameObject:
   - component: {fileID: 1347868588}
   - component: {fileID: 1347868587}
   - component: {fileID: 1347868586}
+  - component: {fileID: 1347868589}
   m_Layer: 0
   m_Name: Sfx
   m_TagString: Untagged
@@ -976,6 +1166,87 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1347868589
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1347868585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb76590171eabeb45ab7f336a58daa9a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameSfx
+  barrageHit: {fileID: 8300000, guid: 05996263c0554fd44867dd0e9216e348, type: 3}
+  bigHit: {fileID: 8300000, guid: 353920d68f4f26a4db1ff1a3d3cf71de, type: 3}
+  whoosh: {fileID: 8300000, guid: 2d508b9c11e988e44bc68f746f66f0ef, type: 3}
+  screenCrash: {fileID: 8300000, guid: ed7007a363ac50e43a6296249b3b714b, type: 3}
+  windup: {fileID: 8300000, guid: 61f349789e117d54b84752e46bf24766, type: 3}
+  beamReflect: {fileID: 8300000, guid: 64a4a7049a2dc3e4e837553b2a67a491, type: 3}
+  beamLoop: {fileID: 8300000, guid: 25bd544fece3f60478fbbccabd99c6ef, type: 3}
+  phaseChange: {fileID: 8300000, guid: a415d7ef7941a0f40bcf25008fc48ad7, type: 3}
+  finish: {fileID: 8300000, guid: 455b88d028b852e4382d7f5712127575, type: 3}
+  twinkle: {fileID: 8300000, guid: 2e27c49056e295d438b6b234c15200df, type: 3}
+  volume: 0.8
+  pitchJitter: 0.08
+  sfxFolder: Assets/Audio/Sfx
+--- !u!1 &1357829090
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1357829092}
+  - component: {fileID: 1357829091}
+  m_Layer: 0
+  m_Name: Title
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1357829091
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357829090}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c54e205237416244b836f46e1198afd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TitleLogo
+  logo: {fileID: 21300000, guid: 5b155168529c64647b4b305df8e99e01, type: 3}
+  silhouette: {fileID: 21300000, guid: b76209aafddd7544e99699923852c79b, type: 3}
+  position: {x: 0, y: -40}
+  width: 900
+  sortingOrder: 50
+  playOnStart: 1
+  popTime: 0.45
+  revealTime: 0.8
+  burstCount: 18
+  twinkleInterval: 0.12
+  sparkleColor: {r: 1, g: 0.97, b: 0.8, a: 1}
+  bobAmount: 8
+--- !u!4 &1357829092
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357829090}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.09442, y: 0, z: -3.02066}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1603289163
 GameObject:
   m_ObjectHideFlags: 0
@@ -1011,70 +1282,180 @@ MonoBehaviour:
   judgeX: -5
   centerY: -2
   laneOffset: 1.5
-  scrollSpeed: 8
+  scrollSpeed: 13
   setupCamera: 1
   upperNotePrefab: {fileID: 0}
   lowerNotePrefab: {fileID: 0}
   enemies:
-  - name: A12
-    stand: {fileID: 21300000, guid: 77b39821dcb779cabb8ed67c535b2be8, type: 3}
-    jump: {fileID: 21300000, guid: 5f1f02a78116df61a91381bca61b12b2, type: 3}
-    lowAttack: {fileID: 21300000, guid: fb128b0f90aa0fb33bf88ef20735d032, type: 3}
-    hit: {fileID: 21300000, guid: f353787643b999fe1b90607d4b586193, type: 3}
-    groggy: {fileID: 21300000, guid: b8e76ea5fcc40fa0e98d3662d400cfe0, type: 3}
-    annoying: {fileID: 21300000, guid: 082aa0147674d7ab5a20eac547bccee4, type: 3}
-  - name: Amy
-    stand: {fileID: 21300000, guid: 84f0a6c535fa923ccb7ac1d0e1824095, type: 3}
-    jump: {fileID: 21300000, guid: 92931459ab13de5f98319cb0dc42d50a, type: 3}
-    lowAttack: {fileID: 21300000, guid: 363e721f1ef732481a3e2e9d38ad8929, type: 3}
-    hit: {fileID: 21300000, guid: c0f72782deebb3db8a6afe384f9a07e2, type: 3}
-    groggy: {fileID: 21300000, guid: 9aa0a2707f0abd8478dd2082c0d4a5f7, type: 3}
-    annoying: {fileID: 21300000, guid: 7157bb5de7535e2c9a3336a6d0833617, type: 3}
-  - name: DevilMan
-    stand: {fileID: 21300000, guid: 5536fbfd47c3179d38a9dd183756717a, type: 3}
-    jump: {fileID: 21300000, guid: a129f5e664e2bf440aa88b68b947de2e, type: 3}
-    lowAttack: {fileID: 21300000, guid: 3b8a7467a5c5a245099ccbeb84346f49, type: 3}
-    hit: {fileID: 21300000, guid: 788e53a76e5ac3b618b5b6578324a4ae, type: 3}
-    groggy: {fileID: 21300000, guid: cd0bf728d72bb8c4aba6c1dfdb143b50, type: 3}
-    annoying: {fileID: 21300000, guid: 173bd5dd6c81cfe21affbde67cb5982b, type: 3}
-  - name: KimYuna
-    stand: {fileID: 21300000, guid: f33c7fed2b68c5af5bd7241632108828, type: 3}
-    jump: {fileID: 21300000, guid: 78d68855e94943be896dd690b9bebf94, type: 3}
-    lowAttack: {fileID: 21300000, guid: b4f0396a281c38a3da90acbc7216020e, type: 3}
-    hit: {fileID: 21300000, guid: 33f0e6ddb545427a4804681ed96a177d, type: 3}
-    groggy: {fileID: 21300000, guid: 83aa08325b8d5f4df9c1206521ba99bf, type: 3}
-    annoying: {fileID: 21300000, guid: c1f5941990cb262ef935fe8f68bbae8f, type: 3}
-  - name: Kwesi
-    stand: {fileID: 21300000, guid: 2e4853cf61bdc6da9b6a3d6798dcf05f, type: 3}
-    jump: {fileID: 21300000, guid: d42c2c7b275013814884704f57fe735f, type: 3}
-    lowAttack: {fileID: 21300000, guid: a1964d18a3899cd1e8c7688e09abb8ed, type: 3}
-    hit: {fileID: 21300000, guid: c5bd574271f54ac23b33a59d993e1cd9, type: 3}
-    groggy: {fileID: 21300000, guid: 93f581f6c99b515a292ff9a05dcb9398, type: 3}
-    annoying: {fileID: 21300000, guid: cc518189a6c7429e69ac3713e7a96f73, type: 3}
-  - name: MachoMan
-    stand: {fileID: 21300000, guid: 46c92c8d7daab4a98afbc4654c0695b5, type: 3}
-    jump: {fileID: 21300000, guid: 62711bf9c6cdd88a5b63f4f30b3004a1, type: 3}
-    lowAttack: {fileID: 21300000, guid: 97317415d4e89be8bb5106cc8ed8771b, type: 3}
-    hit: {fileID: 21300000, guid: 2ed3466ff6ba052b2aab682a4f8bde84, type: 3}
-    groggy: {fileID: 21300000, guid: 307e3ebd9b035fde681fa47415f1b723, type: 3}
-    annoying: {fileID: 21300000, guid: 776f4b7944bee605e9ba8e36768b723f, type: 3}
-  - name: X-Man
-    stand: {fileID: 21300000, guid: 52b3c95a1b846f89996b6b3837f10009, type: 3}
-    jump: {fileID: 21300000, guid: 54b5104d4b2389ef0835ea8c12635c85, type: 3}
-    lowAttack: {fileID: 21300000, guid: 18fa790f0f60b99d1999159135286928, type: 3}
-    hit: {fileID: 21300000, guid: ad78f42d71887118086bde670cc134b0, type: 3}
-    groggy: {fileID: 21300000, guid: 3364e4caa9ecf7da693939b6aa72eec0, type: 3}
-    annoying: {fileID: 21300000, guid: 07dbdb71b576e413ca36fa9a17a768f5, type: 3}
-  playerCharacter: Roi
+  - name: Girl_1
+    run:
+    - {fileID: 4035959289877228764, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: -982904232830982447, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: -350908408369970039, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: -5409570386352685021, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 1553940418269799609, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 2416434504916517810, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: -6428935122508569504, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 7144598999076838305, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 7500509103958437945, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 1008816216748069464, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 11406907883527339, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    - {fileID: 8030128826893041618, guid: d37e1427d2def0645bbaf8f7bc3b5344, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: -7763475090823894447, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: 302641331129538988, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: -6329420634031446844, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: -910092549403018386, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: 221524225039350300, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: 1290532464073988732, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    - {fileID: 4780903288873104255, guid: 9eb93861c54208d4982448c32ee454fa, type: 3}
+    hit: {fileID: -8061149487327183114, guid: 394cf8319180fd04689df159ebd21c86, type: 3}
+    groggy: {fileID: 3738244094162840469, guid: 394cf8319180fd04689df159ebd21c86, type: 3}
+    annoying: {fileID: -7516342049021962738, guid: c6321a9688f1848439e629dfe31ccdbe, type: 3}
+  - name: Girl_2
+    run:
+    - {fileID: 4035959289877228764, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: -982904232830982447, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: -350908408369970039, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: -5409570386352685021, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 1553940418269799609, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 2416434504916517810, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: -6428935122508569504, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 7144598999076838305, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 7500509103958437945, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 1008816216748069464, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 11406907883527339, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    - {fileID: 8030128826893041618, guid: 73c872e6176c748459f5928e4bc3fee2, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: -7763475090823894447, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: 302641331129538988, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: -6329420634031446844, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: -910092549403018386, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: 221524225039350300, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: 1290532464073988732, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: 4780903288873104255, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    - {fileID: -2238382357930459393, guid: ac744eab47ee8fd4b8bbc6a937b8b969, type: 3}
+    hit: {fileID: -8061149487327183114, guid: aae42fbb92e97844281cd9c24e027600, type: 3}
+    groggy: {fileID: 872000403840971672, guid: aae42fbb92e97844281cd9c24e027600, type: 3}
+    annoying: {fileID: -7516342049021962738, guid: ea1db57d0f93b76418aaacdfef70573d, type: 3}
+  - name: Girl_3
+    run:
+    - {fileID: 4035959289877228764, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: -982904232830982447, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: -350908408369970039, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: -5409570386352685021, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 1553940418269799609, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 2416434504916517810, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: -6428935122508569504, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 7144598999076838305, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 7500509103958437945, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 1008816216748069464, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 11406907883527339, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    - {fileID: 8030128826893041618, guid: 808319b4a5f327e48b813ca21c833a21, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    - {fileID: -7763475090823894447, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    - {fileID: 302641331129538988, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    - {fileID: -6329420634031446844, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    - {fileID: -910092549403018386, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    - {fileID: 221524225039350300, guid: 0d9f7a67607907c4d806a5e9c3eceefb, type: 3}
+    hit: {fileID: -8061149487327183114, guid: 18868307874097c4ca499bb7de9ddba2, type: 3}
+    groggy: {fileID: 5182184973244218985, guid: 18868307874097c4ca499bb7de9ddba2, type: 3}
+    annoying: {fileID: -7516342049021962738, guid: bd8778c91be3b1847aab1bd64bf0dfe1, type: 3}
+  - name: Minion_1
+    run:
+    - {fileID: 4944230376442633554, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: -2274363484027164459, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: 8284087734974297348, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: 5304202850863732263, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: 2833043080597125133, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: -2217414122262695004, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: -4440497016933152808, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: 8676454946275842879, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: -6351944509545543589, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    - {fileID: 2158891789428380870, guid: d39bc53a3a89a5d48af42b150608fc95, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: 49851c069d263f84f8fb8fab30a7448a, type: 3}
+    - {fileID: -7763475090823894447, guid: 49851c069d263f84f8fb8fab30a7448a, type: 3}
+    - {fileID: 302641331129538988, guid: 49851c069d263f84f8fb8fab30a7448a, type: 3}
+    - {fileID: -6329420634031446844, guid: 49851c069d263f84f8fb8fab30a7448a, type: 3}
+    - {fileID: -910092549403018386, guid: 49851c069d263f84f8fb8fab30a7448a, type: 3}
+    hit: {fileID: -2048800907179887802, guid: 757ac470700926b46bad0170f8153743, type: 3}
+    groggy: {fileID: -3720053754089064719, guid: 757ac470700926b46bad0170f8153743, type: 3}
+    annoying: {fileID: 4723107735738678597, guid: bae2d12f14c61b84b8fa4e8e0ce42208, type: 3}
+  - name: Minion_2
+    run:
+    - {fileID: 4944230376442633554, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: -2274363484027164459, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: 8284087734974297348, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: 5304202850863732263, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: 2833043080597125133, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: -2217414122262695004, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: -4440497016933152808, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: 8676454946275842879, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: -6351944509545543589, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    - {fileID: 2158891789428380870, guid: e7b6981e56169b249a7c96fc53fc0559, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: 6db13ce942d50894e80b787dcc6ce2e4, type: 3}
+    - {fileID: -7763475090823894447, guid: 6db13ce942d50894e80b787dcc6ce2e4, type: 3}
+    - {fileID: 302641331129538988, guid: 6db13ce942d50894e80b787dcc6ce2e4, type: 3}
+    - {fileID: -6329420634031446844, guid: 6db13ce942d50894e80b787dcc6ce2e4, type: 3}
+    hit: {fileID: -2048800907179887802, guid: b4c9435b1a2a4864485d67860b7f516d, type: 3}
+    groggy: {fileID: -3720053754089064719, guid: b4c9435b1a2a4864485d67860b7f516d, type: 3}
+    annoying: {fileID: 4723107735738678597, guid: 2edf5a53f71b6954585f19038abf2dac, type: 3}
+  - name: Minion_3
+    run:
+    - {fileID: 4944230376442633554, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: -2274363484027164459, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: 8284087734974297348, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: 5304202850863732263, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: 2833043080597125133, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: -2217414122262695004, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: -4440497016933152808, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: 8676454946275842879, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: -6351944509545543589, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    - {fileID: 2158891789428380870, guid: d3c58ec6f3ec0ae41bbdc76a68d56369, type: 3}
+    attack:
+    - {fileID: -7008412969330441016, guid: 27cb9710ed6e3864f991b086b6347d49, type: 3}
+    - {fileID: -7763475090823894447, guid: 27cb9710ed6e3864f991b086b6347d49, type: 3}
+    - {fileID: 302641331129538988, guid: 27cb9710ed6e3864f991b086b6347d49, type: 3}
+    - {fileID: -6329420634031446844, guid: 27cb9710ed6e3864f991b086b6347d49, type: 3}
+    hit: {fileID: -2048800907179887802, guid: a13b84d4152c8e04ab082616636b37bb, type: 3}
+    groggy: {fileID: -3720053754089064719, guid: a13b84d4152c8e04ab082616636b37bb, type: 3}
+    annoying: {fileID: 4723107735738678597, guid: 0350edca1b805964182a39a693425077, type: 3}
+  enemyFolder: Assets/Arts/Enemies
   enemyHeight: 3
-  enemyYOffset: 0.4
+  enemyYOffset: 0
+  runFps: 14
+  enemyOutline: 0.05
+  enemyOutlineColor: {r: 0, g: 0, b: 0, a: 0.9}
+  laneBandAlpha: 0.35
+  laneBandHeight: 1.5
+  markerSize: 0.6
+  bossChargeOnBarrage: 1
+  bossFrontOffset: 1.6
+  beamMinDuration: 1.5
+  chargeCooldown: 5
+  giantScale: 1.7
+  giantOutlineColor: {r: 0.85, g: 0.1, b: 0.1, a: 0.95}
+  heartChance: 0.2
+  heartMinGap: 15
+  heartColor: {r: 1, g: 0.35, b: 0.6, a: 1}
+  heartHeal: 10
+  referee: {fileID: 0}
+  bossBeamOnLong: 1
+  beamHandOffset: 0.8
+  beamWidth: 0.6
+  barrageFlashColor: {r: 1, g: 0.45, b: 0.45, a: 1}
+  barrageLines: 8
   barrageEnemyScale: 1.6
   holdShake: 1
   enemyMoveSpeed: 7
   jumpLead: 0.5
   jumpArc: 1
   lowAttackLead: 0.2
-  bossThrowArc: 1.5
   boss: {fileID: 243205439}
   hitEffectPrefab: {fileID: 0}
   bigHitEffectPrefab: {fileID: 0}
@@ -1178,6 +1559,12 @@ MonoBehaviour:
   referee: {fileID: 973000693}
   noteDisplay: {fileID: 1603289164}
   font: {fileID: 0}
+  showBossHealthBar: 0
+  portraitPosition: {x: 1200, y: 350}
+  portraitSize: {x: 620, y: 620}
+  cutInTextPosition: {x: 0, y: 10}
+  cutInTextRotation: 6
+  cutInTextSize: 140
   typingSpeed: 40
 --- !u!4 &2042211161
 Transform:
@@ -1258,3 +1645,4 @@ SceneRoots:
   - {fileID: 2042211161}
   - {fileID: 1626639939}
   - {fileID: 1347868588}
+  - {fileID: 1357829092}
